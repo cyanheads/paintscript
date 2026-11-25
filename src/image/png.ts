@@ -9,6 +9,11 @@ import { PaintscriptError } from '../errors.js';
 import type { RgbImage } from '../render/render.js';
 
 const SIGNATURE = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]);
+/**
+ * Most pixels `decodePng` reads: 8192 × 8192, four times the largest canvas. A PNG's
+ * header, not its file size, sets how much memory decoding takes.
+ */
+const MAX_PIXELS = 8192 * 8192;
 
 const CRC_TABLE = (() => {
   const t = new Uint32Array(256);
@@ -70,7 +75,10 @@ function invalidImage(why: string): PaintscriptError {
   return new PaintscriptError('invalid_image', `Not a readable PNG: ${why}.`);
 }
 
-/** Decode PNG bytes to 8-bit RGB. Alpha is composited over white. Throws `invalid_image`. */
+/**
+ * Decode PNG bytes to 8-bit RGB. Alpha is composited over white. Throws `invalid_image`
+ * for a file it cannot read or one larger than 8192 × 8192 px.
+ */
 export function decodePng(bytes: Uint8Array): RgbImage {
   if (bytes.length < 8 || SIGNATURE.some((b, i) => bytes[i] !== b))
     throw invalidImage('missing PNG signature');
@@ -106,11 +114,16 @@ export function decodePng(bytes: Uint8Array): RgbImage {
   if (colorType === 3 ? depth !== 8 : depth !== 8 && depth !== 16)
     throw invalidImage(`bit depth ${depth} with color type ${colorType} is not supported`);
   if (colorType === 3 && !palette) throw invalidImage('palette image without a PLTE chunk');
+  if (width * height > MAX_PIXELS)
+    throw invalidImage(
+      `it is ${width}×${height} px, and at most ${MAX_PIXELS} px (8192 × 8192) are read; scale it down`,
+    );
   const bpp = channels * (depth / 8);
   const stride = width * bpp;
   let raw: Uint8Array;
   try {
-    raw = inflateSync(concat(idat));
+    // never inflate past what the header describes
+    raw = inflateSync(concat(idat), { maxOutputLength: (stride + 1) * height });
   } catch (cause) {
     throw new PaintscriptError('invalid_image', 'Not a readable PNG: corrupt image data.', {
       cause,
