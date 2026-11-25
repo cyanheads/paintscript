@@ -44,6 +44,10 @@ Design decisions and their reasons: `docs/design.md`. Update it when a decision 
 - **Host functions run outside the interrupt.** Any vocabulary call whose cost scales with its arguments needs a bound checked before the work starts (as `stroke` bounds path points and length).
 - **Generated files:** `CHANGELOG.md` (from `changelog/`). Regenerate with `bun run changelog:build`; never hand-edit.
 
+## Publishing
+
+A release runs straight through on `main`: the version bump and its `changelog/` entry land as `chore(release): <version> — <theme>`, then an annotated `v<version>` tag (a theme subject without the version, flat bullets from the changelog entry, the changelog link last), `gh release create v<version> --verify-tag --notes-from-tag`, and `npm publish`. `prepublishOnly` runs `bun run check` and `bun run lint:packaging`. Each npm publish runs only on the maintainer's word.
+
 ## Commit stance
 
-Commit and push as verified work lands, after `bun run check` is green. Terse Conventional Commits, one concern per commit, no attribution trailers. Never `git stash`, never worktrees, never force-push. npm publishing and making the repo public are the maintainer's call.
+Commit and push as verified work lands, after `bun run check` is green. Terse Conventional Commits, one concern per commit, no attribution trailers. Never `git stash`, never worktrees, never force-push.

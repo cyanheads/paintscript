@@ -1,0 +1,86 @@
+name: Bug Report
+description: A stroke, mix, view, journal, or CLI run does something real paint or the docs say it shouldn't
+labels: ["bug"]
+assignees: ["cyanheads"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. The fastest fix starts from a script and seed that show it, since a run with the same seed repeats exactly.
+
+        **Do not include secrets, credentials, API keys, tokens, PII, or other sensitive data.** Redact them from code, logs, and stack traces before submitting. GitHub issues are public and permanent.
+
+        **Secondary labels.** `bug` is applied automatically — also add one or more of the following in the sidebar if they apply:
+        - `regression` — worked before, broken after an update
+        - `performance` — memory, CPU, or run time
+        - `security` — a script, journal, or image gets past the sandbox or its limits
+        - `breaking-change` — the fix changes the public API, the script vocabulary, or the journal format
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: "Replace the second row. paintscript: the installed version, not the ^ range. Runtime: Bun or Node.js, with its version. OS is optional."
+      value: |
+        | paintscript | Runtime | OS |
+        |---|---|---|
+        | 0.x.y | Bun 1.4.x | macOS 15.x |
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Paint and color mixing
+        - Brushes and strokes
+        - Canvas, drying, and lighting
+        - Script sandbox and vocabulary
+        - Views (show, painting.view)
+        - Journal and replay
+        - Timelapse
+        - CLI
+        - Docs
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: The smallest script that shows it, and the settings it ran with (size, ground, texture, surface, seed), or the whole `paintscript run` command.
+      render: js
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened and what you expected instead — two or three sentences.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: A crop of the painting or a `show()` view, or the run report, verbatim.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Only what changes the fix — a workaround, a related issue, the one detail that matters.
+    validations:
+      required: false
