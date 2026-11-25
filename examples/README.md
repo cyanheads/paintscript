@@ -12,6 +12,16 @@ A beach at low tide, painted into the setting sun: a row of old posts leads out 
 bun src/cli/bin.ts run examples/low-tide/0*.js --out examples/low-tide/painting.png --journal examples/low-tide/journal.jsonl --timelapse examples/low-tide/timelapse.gif --seed 1847
 ```
 
+## City rain
+
+![City rain: a Manhattan avenue in the rain at dusk, cabs and umbrellas on a road that mirrors the lights](city-rain/painting.png)
+
+A Manhattan avenue in the rain at dusk, seen from five metres up and looking along the canyon of buildings to a spire in the haze, with yellow cabs, a steam stack, lamps, a red signal, and people under umbrellas on the wet road. It is transparent watercolor, painted light to dark in six passages. The first wash floods the sheet wet into wet with a few drops of color and saves bare paper for the lamps, headlights, and steam. Each building is washed along its own perspective lines so its lit windows can be left as clean shapes, and each window is then filled with one stroke that zigzags across it. The road is a mirror: every reflection stroke reads the painted wall above it with `at()` and drags that color down the wet street. Each zone takes its water from one of three dishes (strong, medium, and pale), and every color is mixed from nine tubes with `mix()`.
+
+```sh
+bun src/cli/bin.ts run examples/city-rain/0*.js --out examples/city-rain/painting.png --journal examples/city-rain/journal.jsonl --timelapse examples/city-rain/timelapse.gif --seed 1112 --width 1200 --height 1600 --ground '#f3efe6' --texture smooth --surface matte
+```
+
 ## Rain bamboo
 
 ![Rain bamboo: a grove of bamboo in ink after rain, one dark culm in front, paler groves fading into mist, a red seal](bamboo/painting.png)
