@@ -52,6 +52,8 @@ Design decisions and their reasons: `docs/design.md`. Update it when a decision 
 - `git-wrapup` lands the commit stack on `release/<version>` with `chore(release): <version> — <theme>` on top (version bump and `changelog/` entry), pushes it, and opens the PR (title = the release commit subject, body = the release digest: theme line, `## Changes`, `## Gates`, changelog link last).
 - `release-and-publish` then fast-forwards `main` locally with `git merge --ff-only`, creates the signed, annotated `v<version>` tag on `main`'s tip, pushes `main` and the tag, deletes the branch, runs `npm publish` (`prepublishOnly` runs `bun run check` and `bun run lint:packaging`), and creates the GitHub release with `--verify-tag --notes-from-tag`. There is no MCP Registry, `.mcpb`, or Docker step.
 
+After a release, repaint each example with its command in `examples/README.md`, so its journal header records the new engine version and `paintscript replay` does not warn about an older one. Only `journal.jsonl` may change; a changed PNG or GIF means the release moved pixels. Commit the journals as docs.
+
 A caller's brief may run a given release as `gated` instead, with a `release-pr-review` pass on the open PR before `release-and-publish`. **Never merge through the GitHub UI or `gh pr merge`**: squash and rebase-merge are disabled in the repo settings because both rewrite the stack (rebase-merge also strips the SSH signatures), and a merge commit breaks the linear history. Each npm publish runs only on the maintainer's word.
 
 ## Commit stance
