@@ -48,12 +48,15 @@ function finite(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v);
 }
 
-/** Parse a color argument into a reflectance spectrum; throws `invalid_color` with the accepted forms. */
-export function toSpectrum(input: unknown): Float32Array {
+/**
+ * Parse a color argument into a reflectance spectrum; throws `invalid_color` naming
+ * `label` (the argument, e.g. "stroke(): color") and the accepted forms.
+ */
+export function toSpectrum(input: unknown, label = 'color'): Float32Array {
   if (typeof input === 'string') {
     const bytes = parseHex(input);
     if (bytes) return bytesToSpectrum(bytes[0], bytes[1], bytes[2]);
-    throw invalidColor(`"${input.slice(0, 40)}" is not a hex color`);
+    throw invalidColor(label, `"${input.slice(0, 40)}" is not a hex color`);
   }
   if (typeof input === 'object' && input !== null) {
     const o = input as Record<string, unknown>;
@@ -63,12 +66,12 @@ export function toSpectrum(input: unknown): Float32Array {
         const out = new Float32Array(NB);
         for (let i = 0; i < NB; i++) {
           const v = bands[i];
-          if (!finite(v)) throw invalidColor('bands must be 8 finite numbers');
+          if (!finite(v)) throw invalidColor(label, 'bands must be 8 finite numbers');
           out[i] = Math.min(RMAX, Math.max(RMIN, v));
         }
         return out;
       }
-      throw invalidColor('bands must be 8 finite numbers');
+      throw invalidColor(label, 'bands must be 8 finite numbers');
     }
     if (finite(o.r) && finite(o.g) && finite(o.b)) {
       return linearRgbToSpectrum(toLinear(o.r), toLinear(o.g), toLinear(o.b));
@@ -78,13 +81,13 @@ export function toSpectrum(input: unknown): Float32Array {
       return linearRgbToSpectrum(r, g, b);
     }
   }
-  throw invalidColor('unrecognized color');
+  throw invalidColor(label, 'unrecognized color');
 }
 
-function invalidColor(why: string): PaintscriptError {
+function invalidColor(label: string, why: string): PaintscriptError {
   return new PaintscriptError(
     'invalid_color',
-    `${why}. A color is "#rrggbb", { r, g, b } (sRGB 0–1), { l, a, b } (OKLab), or a color returned by mix() or at().`,
+    `${label}: ${why}. A color is "#rrggbb", { r, g, b } (sRGB 0–1), { l, a, b } (OKLab), or a color returned by mix(), palette(), at(), or ref.at().`,
   );
 }
 

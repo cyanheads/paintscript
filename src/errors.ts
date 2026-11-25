@@ -17,7 +17,7 @@ export type PaintscriptErrorCode =
   | 'no_reference'
   | 'reference_mismatch'
   | 'checkpoint_not_found'
-  | 'checkpoint_out_of_reach';
+  | 'canvas_changed';
 
 /** An operation rejected its input. `code` is stable; `message` says what to change. */
 export class PaintscriptError extends Error {
