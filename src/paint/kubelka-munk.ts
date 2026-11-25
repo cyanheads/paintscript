@@ -24,10 +24,10 @@ export const PAINT_KINDS: readonly PaintKind[] = [
  * hides the ground; semi-opaque lets some through; transparent paint is mostly filter.
  * Mixing ratios don't depend on these: K and S scale together within a kind.
  */
-export const DENSITY = { opaque: 120, semi_opaque: 24, transparent: 4 } as const;
+const DENSITY = { opaque: 120, semi_opaque: 24, transparent: 4 } as const;
 
 /** K/S of an infinitely thick layer with reflectance R. */
-export function ksOf(R: number): number {
+function ksOf(R: number): number {
   return ((1 - R) * (1 - R)) / (2 * R);
 }
 

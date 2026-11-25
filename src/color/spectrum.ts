@@ -124,12 +124,8 @@ export const M_B = Float32Array.from(SPEC_TO_RGB[2]!);
  * Linear sRGB (each 0–1) to a reflectance spectrum: white, then the secondary and
  * primary bases. Out-of-range input is clamped per channel first.
  */
-export function linearRgbToSpectrum(
-  rIn: number,
-  gIn: number,
-  bIn: number,
-  out: Float32Array = new Float32Array(NB),
-): Float32Array {
+export function linearRgbToSpectrum(rIn: number, gIn: number, bIn: number): Float32Array {
+  const out = new Float32Array(NB);
   let r = Math.min(1, Math.max(0, rIn));
   let g = Math.min(1, Math.max(0, gIn));
   let b = Math.min(1, Math.max(0, bIn));

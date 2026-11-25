@@ -7,6 +7,7 @@
 
 import { z } from 'zod';
 import { TEXTURES } from '../canvas/canvas.js';
+import { NB } from '../color/spectrum.js';
 import { PaintscriptError } from '../errors.js';
 import { Painting, type PaintingLimits } from '../painting/painting.js';
 import { REFERENCE_FITS } from '../reference/reference.js';
@@ -20,7 +21,7 @@ const HeaderSchema = z.object({
   engine: z.string(),
   width: z.int().positive(),
   height: z.int().positive(),
-  ground: z.object({ hex: z.string(), bands: z.array(z.number()).length(8) }),
+  ground: z.object({ hex: z.string(), bands: z.array(z.number()).length(NB) }),
   texture: z.enum(TEXTURES),
   seed: z.int().min(0).max(0xffffffff),
   pxPerMm: z.number().positive(),

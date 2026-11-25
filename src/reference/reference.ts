@@ -10,7 +10,7 @@ import { linearRgbToOklab, oklabDistance } from '../color/oklab.js';
 import { NB, spectrumToLinearRgb } from '../color/spectrum.js';
 import { toLinear } from '../color/srgb.js';
 import type { RgbImage } from '../render/render.js';
-import type { Region } from '../render/view.js';
+import { boxBlur, type Region, rectToRegion } from '../render/view.js';
 
 /** How the image is placed: fill the canvas and crop, fit inside it, or stretch to it. */
 export type ReferenceFit = 'cover' | 'contain' | 'stretch';
@@ -52,10 +52,6 @@ const BYTE_TO_LINEAR = Float32Array.from({ length: 256 }, (_, i) => toLinear(i /
 
 /** A reference image resampled onto one canvas. */
 export class Reference {
-  readonly fit: ReferenceFit;
-  /** Source image size in px. */
-  readonly imageHeight: number;
-  readonly imageWidth: number;
   /** Where the image lands, in canvas px; extends past the canvas under `cover`. */
   readonly placement: Region;
   private readonly width: number;
@@ -67,9 +63,6 @@ export class Reference {
   private gradient?: { gx: Float32Array; gy: Float32Array };
 
   constructor(image: RgbImage, width: number, height: number, fit: ReferenceFit) {
-    this.fit = fit;
-    this.imageWidth = image.width;
-    this.imageHeight = image.height;
     this.width = width;
     this.height = height;
     this.placement = place(image.width, image.height, width, height, fit);
@@ -194,7 +187,7 @@ export class Reference {
     }
     cells.sort((a, b) => b.distance - a.distance);
     return {
-      region: { x: rect.x0, y: rect.y0, w: rect.x1 - rect.x0, h: rect.y1 - rect.y0 },
+      region: rectToRegion(rect),
       mean: samples ? total / samples : 0,
       cell,
       stride,
@@ -282,39 +275,4 @@ function gradientOf(L: Float32Array, W: number, H: number) {
         8;
     }
   return { gx, gy };
-}
-
-/**
- * One box-blur pass of radius r along one axis: `n` lines of `len` samples, a line
- * starting every `lineStep` and its samples `step` apart. Edges average what they reach.
- */
-function boxBlur(
-  src: Float32Array,
-  dst: Float32Array,
-  n: number,
-  len: number,
-  r: number,
-  step: number,
-  lineStep: number,
-) {
-  for (let line = 0; line < n; line++) {
-    const o = line * lineStep;
-    let acc = 0;
-    let cnt = 0;
-    for (let k = 0; k < Math.min(len, r); k++) {
-      acc += src[o + k * step]!;
-      cnt++;
-    }
-    for (let k = 0; k < len; k++) {
-      if (k + r < len) {
-        acc += src[o + (k + r) * step]!;
-        cnt++;
-      }
-      if (k - r - 1 >= 0) {
-        acc -= src[o + (k - r - 1) * step]!;
-        cnt--;
-      }
-      dst[o + k * step] = acc / cnt;
-    }
-  }
 }

@@ -55,15 +55,19 @@ export const PRELUDE = `(() => {
   define('log', log);
   define('console', Object.freeze({ log, info: log, warn: log, error: log, debug: log }));
 
-  // mulberry32, seeded per run
-  let state = C.seed >>> 0;
-  const next = () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let t = state;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  // mulberry32, as src/random/rng.ts
+  const mulberry32 = (seed) => {
+    let a = seed >>> 0;
+    return () => {
+      a = (a + 0x6d2b79f5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
   };
+  // seeded per run
+  const next = mulberry32(C.seed);
   const finite = (where, v) => {
     if (typeof v !== 'number' || !Number.isFinite(v))
       throw new TypeError(where + ' takes finite numbers (got ' + text(v) + ')');
@@ -79,14 +83,7 @@ export const PRELUDE = `(() => {
   // 2D gradient noise on a unit lattice, one field per canvas seed
   const perm = new Uint8Array(512);
   {
-    let s = C.noiseSeed >>> 0;
-    const r = () => {
-      s = (s + 0x6d2b79f5) >>> 0;
-      let t = s;
-      t = Math.imul(t ^ (t >>> 15), t | 1);
-      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
+    const r = mulberry32(C.noiseSeed);
     const p = Array.from({ length: 256 }, (_, i) => i);
     for (let i = 255; i > 0; i--) {
       const j = Math.floor(r() * (i + 1));

@@ -60,6 +60,11 @@ export function rectToRegion(r: PixelRect): Region {
   return { x: r.x0, y: r.y0, w: r.x1 - r.x0, h: r.y1 - r.y0 };
 }
 
+/** Region to pixel rectangle. */
+export function regionToRect(r: Region): PixelRect {
+  return { x0: r.x, y0: r.y, x1: r.x + r.w, y1: r.y + r.h };
+}
+
 /** Render a view of the canvas. Throws nothing: a region off the canvas renders the whole canvas. */
 export function renderView(c: Canvas, opts: ViewOptions = {}): View {
   const mode = opts.mode ?? 'color';
@@ -124,39 +129,45 @@ export function renderView(c: Canvas, opts: ViewOptions = {}): View {
 function squint(lin: Float64Array, w: number, h: number) {
   const r = Math.max(1, Math.round(Math.max(w, h) * 0.012));
   const tmp = new Float64Array(lin.length);
-  for (let pass = 0; pass < 3; pass++) {
-    for (let y = 0; y < h; y++)
-      for (let ch = 0; ch < 3; ch++) {
-        let acc = 0;
-        let cnt = 0;
-        for (let x = -r; x < w + r; x++) {
-          if (x + r < w) {
-            acc += lin[(y * w + x + r) * 3 + ch]!;
-            cnt++;
-          }
-          if (x - r - 1 >= 0) {
-            acc -= lin[(y * w + x - r - 1) * 3 + ch]!;
-            cnt--;
-          }
-          if (x >= 0 && x < w) tmp[(y * w + x) * 3 + ch] = acc / cnt;
-        }
+  for (let pass = 0; pass < 3; pass++)
+    for (let ch = 0; ch < 3; ch++) {
+      boxBlur(lin.subarray(ch), tmp.subarray(ch), h, w, r, 3, 3 * w);
+      boxBlur(tmp.subarray(ch), lin.subarray(ch), w, h, r, 3 * w, 3);
+    }
+}
+
+/**
+ * One box-blur pass of radius r along one axis: `n` lines of `len` samples, a line
+ * starting every `lineStep` and its samples `step` apart. Edges average what they reach.
+ */
+export function boxBlur(
+  src: Float32Array | Float64Array,
+  dst: Float32Array | Float64Array,
+  n: number,
+  len: number,
+  r: number,
+  step: number,
+  lineStep: number,
+): void {
+  for (let line = 0; line < n; line++) {
+    const o = line * lineStep;
+    let acc = 0;
+    let cnt = 0;
+    for (let k = 0; k < Math.min(len, r); k++) {
+      acc += src[o + k * step]!;
+      cnt++;
+    }
+    for (let k = 0; k < len; k++) {
+      if (k + r < len) {
+        acc += src[o + (k + r) * step]!;
+        cnt++;
       }
-    for (let x = 0; x < w; x++)
-      for (let ch = 0; ch < 3; ch++) {
-        let acc = 0;
-        let cnt = 0;
-        for (let y = -r; y < h + r; y++) {
-          if (y + r < h) {
-            acc += tmp[((y + r) * w + x) * 3 + ch]!;
-            cnt++;
-          }
-          if (y - r - 1 >= 0) {
-            acc -= tmp[((y - r - 1) * w + x) * 3 + ch]!;
-            cnt--;
-          }
-          if (y >= 0 && y < h) lin[(y * w + x) * 3 + ch] = acc / cnt;
-        }
+      if (k - r - 1 >= 0) {
+        acc -= src[o + (k - r - 1) * step]!;
+        cnt--;
       }
+      dst[o + k * step] = acc / cnt;
+    }
   }
 }
 

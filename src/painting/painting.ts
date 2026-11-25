@@ -9,7 +9,7 @@
 
 import type { QuickJSWASMModule } from 'quickjs-emscripten-core';
 import type { BrushSpec } from '../brush/brush.js';
-import { Canvas, type PixelRect, TEXTURES, type Texture } from '../canvas/canvas.js';
+import { Canvas, type PixelRect, TEXTURES, type Texture, unionRect } from '../canvas/canvas.js';
 import { type Color, type ColorInput, describeSpectrum, toSpectrum } from '../color/color.js';
 import { NB } from '../color/spectrum.js';
 import { PaintscriptError } from '../errors.js';
@@ -25,6 +25,7 @@ import {
   clipRegion,
   type Region,
   rectToRegion,
+  regionToRect,
   renderView,
   type View,
   type ViewOptions,
@@ -204,6 +205,8 @@ interface Committed extends RunEntry {
 }
 
 interface Execution {
+  /** Session state as the run found it, restored on rollback. */
+  before: Before;
   outcome: ScriptOutcome;
   session: RunSession;
   stop: 'cancelled' | 'strokes' | 'time' | undefined;
@@ -355,7 +358,6 @@ export class Painting {
         'canvas_changed',
         `The painting is at checkpoint ${previous}, not ${options.expectCheckpoint}; look at it before running again.`,
       );
-    const before = this.before();
     const started = performance.now();
     const x = this.execute(code, {
       render: true,
@@ -365,11 +367,7 @@ export class Painting {
       onStroke: options.onStroke,
     });
     const ms = performance.now() - started;
-    const { session, undo } = x;
-    if (session.hostFailure !== undefined) {
-      this.rollback(undo, before);
-      throw session.hostFailure;
-    }
+    const { session } = x;
     const status = statusOf(x);
     if (
       status.status === 'completed' &&
@@ -399,9 +397,9 @@ export class Painting {
       observations: observe(session.strokes, review),
     };
     if (status.status === 'completed' && !options.dryRun) {
-      this.commit(code, options.label, x, before);
+      this.commit(code, options.label, x);
       report.checkpoint = this.checkpoint;
-    } else this.rollback(undo, before);
+    } else this.rollback(x);
     return { ...report, ...status };
   }
 
@@ -417,11 +415,12 @@ export class Painting {
       );
     const removed = this.runs.slice(checkpoint);
     if (!removed.length) return { checkpoint, runsRemoved: 0, region: null, replayed: false };
-    if (removed.every((r) => r.undo)) {
+    const undos = removed.map((r) => r.undo);
+    if (undos.every((u) => u !== null)) {
       let region: PixelRect | null = null;
-      for (const r of [...removed].reverse()) {
-        r.undo!.restore();
-        region = union(region, r.undo!.region());
+      for (const u of undos.toReversed()) {
+        u.restore();
+        region = unionRect(region, u.region());
       }
       this.restoreBefore(removed[0]!.before);
       this.runs.length = checkpoint;
@@ -452,7 +451,6 @@ export class Painting {
    * when it doesn't complete, which a script that once committed never does.
    */
   replay(code: string, options: ReplayOptions = {}): void {
-    const before = this.before();
     const x = this.execute(code, {
       render: false,
       timeMs: Number.POSITIVE_INFINITY,
@@ -460,34 +458,26 @@ export class Painting {
       cancelled: undefined,
       onStroke: options.onStroke,
     });
-    if (x.session.hostFailure !== undefined) {
-      this.rollback(x.undo, before);
-      throw x.session.hostFailure;
-    }
     const status = statusOf(x);
     if (status.status !== 'completed') {
-      this.rollback(x.undo, before);
+      this.rollback(x);
       throw new PaintscriptError(
         'invalid_journal',
         `Run ${this.checkpoint + 1} did not replay: ${status.status === 'script_error' ? status.error.message : status.status}.`,
       );
     }
-    this.commit(code, options.label, x, before);
+    this.commit(code, options.label, x);
   }
 
   /** Render a view; throws `invalid_region` for a region with no pixels on the canvas. */
   view(options: ViewOptions = {}): View {
-    if (options.region && !clipRegion(this.canvas, options.region))
-      throw new PaintscriptError(
-        'invalid_region',
-        `Region ${JSON.stringify(options.region)} has no pixels on the ${this.width}×${this.height} canvas.`,
-      );
+    if (options.region) this.clip(options.region);
     return renderView(this.canvas, options);
   }
 
   /** The painting at full resolution. */
   image(surface: Surface = 'satin'): RgbImage {
-    return render(this.canvas, { surface });
+    return render(this.canvas, surface);
   }
 
   /** Paint color at a canvas point (rounded and clamped to the canvas), unlit. */
@@ -506,23 +496,29 @@ export class Painting {
   diff(region?: Region, cell = 32): DiffResult {
     if (!this.ref)
       throw new PaintscriptError('no_reference', 'This painting was created without a reference.');
+    return this.ref.diff(
+      this.canvas,
+      regionToRect(this.clip(region)),
+      Math.max(4, Math.round(cell)),
+    );
+  }
+
+  /** A caller's region clipped to the canvas (default: all of it); throws `invalid_region` when none of it is on the canvas. */
+  private clip(region: Region | undefined): Region {
     const r = clipRegion(this.canvas, region);
     if (!r)
       throw new PaintscriptError(
         'invalid_region',
         `Region ${JSON.stringify(region)} has no pixels on the ${this.width}×${this.height} canvas.`,
       );
-    return this.ref.diff(
-      this.canvas,
-      { x0: r.x, y0: r.y, x1: r.x + r.w, y1: r.y + r.h },
-      Math.max(4, Math.round(cell)),
-    );
+    return r;
   }
 
   private freshCanvas(): Canvas {
     return new Canvas(this.width, this.height, this.groundR, this.seed, this.texture);
   }
 
+  /** Run a script against the live canvas. A host failure (a bug, not a script error) rolls the run back and rethrows. */
   private execute(
     code: string,
     o: {
@@ -533,6 +529,7 @@ export class Painting {
       timeMs: number;
     },
   ): Execution {
+    const before = this.before();
     const undo = new TileUndo(this.canvas);
     const session = new RunSession({
       canvas: this.canvas,
@@ -570,7 +567,18 @@ export class Painting {
         return stop !== undefined;
       },
     });
-    return { outcome, session, undo, stop: session.strokeCapHit ? 'strokes' : stop };
+    const x: Execution = {
+      before,
+      outcome,
+      session,
+      undo,
+      stop: session.strokeCapHit ? 'strokes' : stop,
+    };
+    if (session.hostFailure !== undefined) {
+      this.rollback(x);
+      throw session.hostFailure;
+    }
+    return x;
   }
 
   private before(): Before {
@@ -587,18 +595,18 @@ export class Painting {
     this.canvas.strokeTotal = b.strokeTotal;
   }
 
-  private rollback(undo: TileUndo, before: Before) {
-    undo.restore();
-    this.restoreBefore(before);
+  private rollback(x: Execution) {
+    x.undo.restore();
+    this.restoreBefore(x.before);
   }
 
-  private commit(code: string, label: string | undefined, x: Execution, before: Before) {
+  private commit(code: string, label: string | undefined, x: Execution) {
     this.runs.push({
       code,
       ...(label !== undefined && { label }),
       strokes: x.session.strokes.length,
       brushwork: x.session.strokes.reduce((s, r) => s + brushwork(r.length, r.width), 0),
-      before,
+      before: x.before,
       undo: x.undo,
     });
     // drop the oldest runs' tiles past the budget; those runs then revert by replay
@@ -658,17 +666,6 @@ function statusOf(x: Execution): RunStatus {
       return never;
     }
   }
-}
-
-function union(a: PixelRect | null, b: PixelRect | null): PixelRect | null {
-  if (!a) return b;
-  if (!b) return a;
-  return {
-    x0: Math.min(a.x0, b.x0),
-    y0: Math.min(a.y0, b.y0),
-    x1: Math.max(a.x1, b.x1),
-    y1: Math.max(a.y1, b.y1),
-  };
 }
 
 function invalid(message: string): never {

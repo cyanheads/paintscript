@@ -60,7 +60,7 @@ export interface RunReview {
 /** Nearest-rank percentiles of `values`; null when empty. */
 export function spread(values: readonly number[]): Spread | null {
   if (!values.length) return null;
-  const s = [...values].sort((a, b) => a - b);
+  const s = values.toSorted((a, b) => a - b);
   const q = (p: number) => s[Math.min(s.length - 1, Math.max(0, Math.ceil(p * s.length) - 1))]!;
   return { p10: q(0.1), p50: q(0.5), p90: q(0.9) };
 }

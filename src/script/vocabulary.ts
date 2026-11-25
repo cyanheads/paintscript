@@ -10,7 +10,7 @@
 import { BRUSH_TYPES, type BrushSpec, STROKE_ENDS, type StrokeSpec } from '../brush/brush.js';
 import { layStroke } from '../brush/lay-stroke.js';
 import type { PathPoint } from '../brush/path.js';
-import type { Canvas, PixelRect } from '../canvas/canvas.js';
+import { type Canvas, type PixelRect, unionRect } from '../canvas/canvas.js';
 import { type Color, describeSpectrum, toSpectrum } from '../color/color.js';
 import { linearRgbToSpectrum, NB } from '../color/spectrum.js';
 import { PaintscriptError, type PaintscriptErrorCode } from '../errors.js';
@@ -20,7 +20,15 @@ import type { StrokeRecord } from '../painting/run-review.js';
 import type { TileUndo } from '../painting/tile-undo.js';
 import type { DiffResult, Reference, ReferenceEdge } from '../reference/reference.js';
 import { SURFACES } from '../render/render.js';
-import { type Region, rectToRegion, renderView, VIEW_MODES, type View } from '../render/view.js';
+import {
+  clipRegion,
+  type Region,
+  rectToRegion,
+  regionToRect,
+  renderView,
+  VIEW_MODES,
+  type View,
+} from '../render/view.js';
 import type { HostFunction } from './sandbox.js';
 
 /** Named things a run can define, kept across runs: brushes and palette colors. */
@@ -381,16 +389,9 @@ export class RunSession {
     if (v == null || typeof v !== 'object' || Array.isArray(v))
       fail('invalid_brush', where, `a brush is { type, width, ... } (got ${shown(v)})`);
     const o = options(v, where, BRUSH_KEYS, 'invalid_brush');
-    const type = o.type;
-    if (typeof type !== 'string' || !(BRUSH_TYPES as readonly string[]).includes(type))
-      fail(
-        'invalid_brush',
-        where,
-        `type must be one of ${BRUSH_TYPES.join(', ')} (got ${shown(type)})`,
-      );
     const { width: W, height: H } = this.env.canvas;
     const spec: BrushSpec = {
-      type: type as BrushSpec['type'],
+      type: oneOf(o.type, where, 'type', BRUSH_TYPES, 'invalid_brush'),
       width: number(o.width, where, 'width', 0.5, Math.max(W, H), 'invalid_brush'),
     };
     for (const key of ['splay', 'stiffness', 'streak', 'toneVar'] as const) {
@@ -475,26 +476,24 @@ export class RunSession {
 
   /** A region argument clipped to the canvas; throws when nothing of it is on the canvas. */
   private region(v: unknown, where: string): PixelRect {
-    const { width: W, height: H } = this.env.canvas;
+    const { canvas } = this.env;
     if (v == null || typeof v !== 'object' || Array.isArray(v))
       fail('invalid_region', where, `a region is { x, y, w, h } (got ${shown(v)})`);
-    const o = options(v, where, REGION_KEYS, 'invalid_region');
-    const { x, y, w, h } = o;
+    const { x, y, w, h } = options(v, where, REGION_KEYS, 'invalid_region');
     if (![x, y, w, h].every((c) => typeof c === 'number' && Number.isFinite(c)))
       fail(
         'invalid_region',
         where,
         `a region is { x, y, w, h } of finite numbers (got ${shown(v)})`,
       );
-    const r = {
-      x0: Math.max(0, Math.floor(x as number)),
-      y0: Math.max(0, Math.floor(y as number)),
-      x1: Math.min(W, Math.ceil((x as number) + (w as number))),
-      y1: Math.min(H, Math.ceil((y as number) + (h as number))),
-    };
-    if (r.x1 <= r.x0 || r.y1 <= r.y0)
-      fail('invalid_region', where, `region ${shown(v)} has no pixels on the ${W}×${H} canvas`);
-    return r;
+    const r = clipRegion(canvas, { x, y, w, h } as Region);
+    if (!r)
+      fail(
+        'invalid_region',
+        where,
+        `region ${shown(v)} has no pixels on the ${canvas.width}×${canvas.height} canvas`,
+      );
+    return regionToRect(r);
   }
 
   private whole(): PixelRect {
@@ -502,15 +501,7 @@ export class RunSession {
   }
 
   private touch(r: PixelRect) {
-    const t = this.touched;
-    this.touched = t
-      ? {
-          x0: Math.min(t.x0, r.x0),
-          y0: Math.min(t.y0, r.y0),
-          x1: Math.max(t.x1, r.x1),
-          y1: Math.max(t.y1, r.y1),
-        }
-      : { ...r };
+    this.touched = unionRect(this.touched, r);
   }
 }
 
@@ -583,6 +574,18 @@ function optNumber(
   return o[key] == null ? undefined : number(o[key], where, key, min, max, code);
 }
 
+function oneOf<T extends string>(
+  v: unknown,
+  where: string,
+  key: string,
+  values: readonly T[],
+  code: PaintscriptErrorCode,
+): T {
+  if (typeof v !== 'string' || !(values as readonly string[]).includes(v))
+    fail(code, where, `${key} must be one of ${values.join(', ')} (got ${shown(v)})`);
+  return v as T;
+}
+
 function optEnum<T extends string>(
   o: Obj,
   key: string,
@@ -590,11 +593,7 @@ function optEnum<T extends string>(
   where: string,
   code: PaintscriptErrorCode,
 ): T | undefined {
-  const v = o[key];
-  if (v == null) return undefined;
-  if (typeof v !== 'string' || !(values as readonly string[]).includes(v))
-    fail(code, where, `${key} must be one of ${values.join(', ')} (got ${shown(v)})`);
-  return v as T;
+  return o[key] == null ? undefined : oneOf(o[key], where, key, values, code);
 }
 
 function point(args: unknown[], where: string): [number, number] {

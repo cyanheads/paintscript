@@ -5,7 +5,7 @@
  * @module painting/tile-undo
  */
 
-import type { Canvas, PixelRect } from '../canvas/canvas.js';
+import { type Canvas, type PixelRect, unionRect } from '../canvas/canvas.js';
 import { NB } from '../color/spectrum.js';
 
 /** What a write changes: wet film K and S, wet film volume, or the dry base (reflectance and height). */
@@ -75,17 +75,8 @@ export class TileUndo {
   /** Bounds of every saved tile, or null when nothing was saved. */
   region(): PixelRect | null {
     let out: PixelRect | null = null;
-    for (const key of this.tiles.keys()) {
-      const r = this.tileRect(key % this.cols, Math.floor(key / this.cols));
-      out = out
-        ? {
-            x0: Math.min(out.x0, r.x0),
-            y0: Math.min(out.y0, r.y0),
-            x1: Math.max(out.x1, r.x1),
-            y1: Math.max(out.y1, r.y1),
-          }
-        : r;
-    }
+    for (const key of this.tiles.keys())
+      out = unionRect(out, this.tileRect(key % this.cols, Math.floor(key / this.cols)));
     return out;
   }
 

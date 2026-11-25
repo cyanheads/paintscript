@@ -10,7 +10,7 @@ import { layer } from '../paint/kubelka-munk.js';
 import { rng } from '../random/rng.js';
 
 /** Height added to the base per unit of dried film volume. */
-export const HEIGHT_PER_VOLUME = 0.55;
+const HEIGHT_PER_VOLUME = 0.55;
 
 /** Canvas weave. `smooth` is a gessoed panel with no weave. */
 export type Texture = 'smooth' | 'fine_weave' | 'coarse_weave';
@@ -36,14 +36,23 @@ export interface PixelRect {
   y1: number;
 }
 
+/** The smallest rectangle holding both; null only when both are. Returns an argument as is when the other is null. */
+export function unionRect(a: PixelRect | null, b: PixelRect | null): PixelRect | null {
+  if (!a) return b;
+  if (!b) return a;
+  return {
+    x0: Math.min(a.x0, b.x0),
+    y0: Math.min(a.y0, b.y0),
+    x1: Math.max(a.x1, b.x1),
+    y1: Math.max(a.y1, b.y1),
+  };
+}
+
 /** Physical state of one canvas. Pixel arrays are row-major, spectra interleaved by band. */
 export class Canvas {
   readonly width: number;
   readonly height: number;
   readonly seed: number;
-  readonly texture: Texture;
-  /** Ground reflectance spectrum. */
-  readonly ground: Float32Array;
   /** Dry reflectance per pixel and band. */
   readonly baseR: Float32Array;
   /** Dry surface height per pixel (weave plus dried paint). */
@@ -66,12 +75,11 @@ export class Canvas {
   /** Strokes laid on this canvas, the counter that seeds each stroke's randomness. */
   strokeTotal = 0;
 
+  /** A fresh primed canvas: every pixel the `ground` spectrum, over the `texture` weave. */
   constructor(width: number, height: number, ground: Float32Array, seed: number, texture: Texture) {
     this.width = width;
     this.height = height;
     this.seed = seed;
-    this.texture = texture;
-    this.ground = ground;
     const n = width * height;
     this.baseR = new Float32Array(n * NB);
     this.baseH = new Float32Array(n);

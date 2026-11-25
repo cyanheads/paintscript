@@ -1,7 +1,7 @@
 /**
  * @fileoverview Rendering the canvas to 8-bit sRGB: paint color lit as relief from the
- * upper left with a faint sheen, either box-averaged at an integer step (full quality)
- * or point-sampled 2×2 per output pixel at any width (fast preview).
+ * upper left with a faint sheen, either every pixel (full resolution) or point-sampled
+ * 2×2 per output pixel at any width (fast preview).
  * @module render/render
  */
 
@@ -95,64 +95,30 @@ export function shadePixel(
   out[2] = Math.max(0, b) * shade + sp;
 }
 
-/** Options for a full-quality render. */
-export interface RenderOptions {
-  mode?: RenderMode;
-  /** Integer box-downscale step. Default 1. */
-  step?: number;
-  surface?: Surface;
-  x0?: number;
-  x1?: number;
-  y0?: number;
-  y1?: number;
-}
-
-/** Render a region to 8-bit RGB, box-downscaled by an integer step. */
-export function render(c: Canvas, opts: RenderOptions = {}): RgbImage {
-  const x0 = opts.x0 ?? 0;
-  const y0 = opts.y0 ?? 0;
-  const x1 = opts.x1 ?? c.width;
-  const y1 = opts.y1 ?? c.height;
-  const st = opts.step ?? 1;
-  const mode = opts.mode ?? 'color';
-  const surface = opts.surface ?? 'satin';
-  const ow = Math.floor((x1 - x0) / st);
-  const oh = Math.floor((y1 - y0) / st);
-  const rgb = new Uint8Array(ow * oh * 3);
+/** Render every canvas pixel to 8-bit RGB, lit, under `surface`. */
+export function render(c: Canvas, surface: Surface): RgbImage {
+  const { width, height } = c;
+  const rgb = new Uint8Array(width * height * 3);
   const px = new Float64Array(3);
-  for (let oy = 0; oy < oh; oy++)
-    for (let ox = 0; ox < ow; ox++) {
-      let ar = 0;
-      let ag = 0;
-      let ab = 0;
-      for (let sy = 0; sy < st; sy++)
-        for (let sx = 0; sx < st; sx++) {
-          shadePixel(c, x0 + ox * st + sx, y0 + oy * st + sy, mode, surface, px);
-          ar += px[0]!;
-          ag += px[1]!;
-          ab += px[2]!;
-        }
-      const n = st * st;
-      const o = (oy * ow + ox) * 3;
-      rgb[o] = linearToByte(ar / n);
-      rgb[o + 1] = linearToByte(ag / n);
-      rgb[o + 2] = linearToByte(ab / n);
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++) {
+      shadePixel(c, x, y, 'color', surface, px);
+      const o = (y * width + x) * 3;
+      rgb[o] = linearToByte(px[0]!);
+      rgb[o + 1] = linearToByte(px[1]!);
+      rgb[o + 2] = linearToByte(px[2]!);
     }
-  return { width: ow, height: oh, rgb };
-}
-
-/** Output size of a `renderFit` at `width`: the canvas aspect kept, never wider than the canvas. */
-export function fitSize(c: Canvas, width: number): { height: number; width: number } {
-  const ow = Math.max(1, Math.min(c.width, Math.round(width)));
-  return { width: ow, height: Math.max(1, Math.round((c.height * ow) / c.width)) };
+  return { width, height, rgb };
 }
 
 /**
- * Fast preview of the whole canvas at any width: 2×2 point samples per output pixel
- * instead of `render`'s full box average, so its cost follows the output size.
+ * Fast preview of the whole canvas at any width (never wider than the canvas, its aspect
+ * kept): 2×2 point samples per output pixel instead of `render`'s every canvas pixel, so
+ * its cost follows the output size.
  */
 export function renderFit(c: Canvas, width: number): RgbImage {
-  const { width: ow, height: oh } = fitSize(c, width);
+  const ow = Math.max(1, Math.min(c.width, Math.round(width)));
+  const oh = Math.max(1, Math.round((c.height * ow) / c.width));
   const rgb = new Uint8Array(ow * oh * 3);
   fitRegion(c, rgb, ow, oh, 0, 0, c.width, c.height);
   return { width: ow, height: oh, rgb };
