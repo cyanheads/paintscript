@@ -31,3 +31,13 @@ A cobalt jug of red, orange, and coral poppies with three white anemones, on a w
 ```sh
 bun src/cli/bin.ts run examples/still-life/0*.js --out examples/still-life/painting.png --journal examples/still-life/journal.jsonl --timelapse examples/still-life/timelapse.gif --seed 2511 --width 1200 --height 1500 --ground '#7d5038' --texture coarse_weave --surface varnish
 ```
+
+## Mist
+
+![Mist: a millpond at sunrise in fog, elms on a spit at the left, a heron at the point of a mud bar](mist/painting.png)
+
+A millpond just after sunrise, in the tonalist manner: fog lying on still water, four elms on a spit at the left going dark into it, a far wood dissolving into the light, and the sun a pale glow behind the fog. The only hard notes are a heron at the point of a mud bar and a thin silver wind-lane on the water; every other value stays in a narrow band. Every pile is mixed in the first of six passages from seven tubes, and where a color has to shift across the picture there are a few steps of it, laid side by side with wandering borders so they knit while wet. The sky and water go on as broad, thinned rows that run off both edges, with the glow laid into them as nested strokes tapering at both ends. The far woods, the reflections, and the elms are painted into that wet paint, so each stroke picks up some fog and loses its edge; the mud bar and the heron go on last, over dry paint.
+
+```sh
+bun src/cli/bin.ts run examples/mist/0*.js --out examples/mist/painting.png --journal examples/mist/journal.jsonl --timelapse examples/mist/timelapse.gif --seed 1891 --width 1500 --height 1000 --ground '#9a8f7c' --texture smooth
+```
