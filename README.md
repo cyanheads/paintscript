@@ -129,12 +129,12 @@ await writeFile('painting.gif', film.bytes);
 | `painting.revert(checkpoint)` | Undo committed runs back to a checkpoint |
 | `painting.view(options)` · `painting.image(surface)` | Render a region in any view mode, or the whole lit painting; both default to the painting's surface |
 | `journalOf` · `formatJournal` · `parseJournal` | The painting's record as JSON Lines |
-| `openJournal` · `replayJournal` | A fresh painting from a journal's settings, or with all its runs replayed |
+| `openJournal` · `replayJournal` | A fresh painting from a journal's settings, or with all its runs replayed, each held to the `limits` you pass |
 | `renderTimelapse(journal, options)` | Film a journal as a looping GIF |
-| `encodePng` · `decodePng` | PNG files to and from `RgbImage` |
+| `encodePng` · `decodePng` | PNG files to and from `RgbImage`; decodes up to 8192 × 8192 px |
 | `VOCABULARY_DTS` | The script API as TypeScript declarations, for a model's prompt |
 
-Caller mistakes throw `PaintscriptError` with a stable `code` (`invalid_options`, `invalid_journal`, `reference_mismatch`, `canvas_changed`, …). Script failures never throw; they come back as a run status.
+Caller mistakes throw `PaintscriptError` with a stable `code` (`invalid_options`, `invalid_journal`, `budget_exceeded`, `reference_mismatch`, `canvas_changed`, …). Script failures never throw; they come back as a run status.
 
 ## Runs
 
@@ -158,12 +158,14 @@ The checkpoint is the number of committed runs. Pass `expectCheckpoint` and a ru
 | `logBytes` | 16,384 | run |
 | `undoBytes` | 512 MiB | painting; past it, reverts that far back replay the kept scripts instead |
 
+The time limit and `cancelled()` hold between vocabulary calls and inside a long stroke, as well as while the script computes. Replaying a journal holds each run to the same limits and throws `budget_exceeded` naming the one to raise. A painting keeps at most 1,000 named brushes and 1,000 palette colors.
+
 ## CLI
 
 | Command | What it does |
 |:---|:---|
 | `paintscript run <script.js>... --out <png>` | Run each file as one passage, in order, on one canvas. `--journal`, `--timelapse`, `--views <dir>` (save `show()` views as PNG), `--width`, `--height`, `--ground`, `--texture`, `--seed`, `--reference <png>`, `--fit`, `--surface` |
-| `paintscript replay <journal.jsonl> --out <png>` | Replay a journal on a fresh canvas with the size, ground, texture, surface, and seed it records. `--timelapse`; `--reference` for a journal painted against one |
+| `paintscript replay <journal.jsonl> --out <png>` | Replay a journal on a fresh canvas with the size, ground, texture, surface, and seed it records, with no time or stroke limit. `--timelapse`; `--reference` for a journal painted against one |
 | `paintscript vocabulary` | Print the script API as TypeScript declarations |
 
 Exit codes: `0` done, `1` a passage didn't complete (nothing from it was kept), `2` bad arguments or input.

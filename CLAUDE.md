@@ -30,6 +30,7 @@ bun run check   # the gate: typecheck, Biome with zero warnings, tests, changelo
 | `src/journal/` | Journal JSON Lines: zod schemas, format, parse, open, replay |
 | `src/timelapse/` | Journal → GIF, frames spaced by brushwork |
 | `src/cli/` | `main.ts` (the command, testable via `main(argv, io)`), `bin.ts` (the executable) |
+| `src/arguments.ts` | Argument checks shared by the vocabulary and the `Painting` API |
 | `examples/` | Example paintings: scripts plus their PNG, journal, and GIF. Docs only; not in the package |
 
 Design decisions and their reasons: `docs/design.md`. Update it when a decision changes.
@@ -40,8 +41,9 @@ Design decisions and their reasons: `docs/design.md`. Update it when a decision 
 - **Determinism.** Every random choice comes from `src/random/rng.ts` seeded by the canvas seed and a counter; never `Math.random` or the clock in engine code. Time budgets decide only whether a run finishes, never what lands on the canvas.
 - **A vocabulary change touches three files together:** `src/script/prelude.ts` (the guest globals), `src/script/vocabulary.ts` (host validation and behavior), `src/script/vocabulary-dts.ts` (the declarations models read). `tests/script/vocabulary-dts.test.ts` fails when the declarations and the prelude's `define()` globals disagree. Validation messages name the function and field and say what to change.
 - **A run is atomic.** Anything a run writes to the canvas goes through `TileUndo.save` first (via `layStroke`'s `beforeWrite`), and any session state a run can change (brushes, palette, stroke counter) is restored on rollback and revert.
-- **Journal format changes bump the header `version`** in `src/journal/journal.ts`. Replay must stay byte-identical for journals the engine still accepts.
-- **Host functions run outside the interrupt.** Any vocabulary call whose cost scales with its arguments needs a bound checked before the work starts (as `stroke` bounds path points and length).
+- **Journal format changes bump the header `version`** in `src/journal/journal.ts`. Replay must stay byte-identical for journals the engine still accepts: after a change to the kernel, the session, or the sandbox, replay every `examples/*/journal.jsonl` and compare the PNG and GIF with the committed ones.
+- **Host functions run outside the interrupt.** The vocabulary asks `halted()` before every host call, so a new host function is covered once it is in `RunSession.hostFunctions`. A call whose cost scales with its arguments also needs a bound checked before the work starts (as `stroke` bounds path points and length) or a `stopped()` poll inside the work (as `layStroke` polls every `POLL_PX`). Anything a script can make the host keep across calls needs a cap (as names have `MAX_NAMES`): the heap cap covers only the script's own memory.
+- **Every argument is checked where it enters,** from a script or from a `Painting` method, with the helpers in `src/arguments.ts`.
 - **Generated files:** `CHANGELOG.md` (from `changelog/`). Regenerate with `bun run changelog:build`; never hand-edit.
 
 ## Publishing

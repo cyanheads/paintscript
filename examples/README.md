@@ -1,6 +1,6 @@
 # Examples
 
-Each folder holds the passage scripts for one painting, the finished `painting.png`, the `journal.jsonl` that replays it with `paintscript replay`, and a `timelapse.gif` of it being made. The command under each painting repaints it from the repo root, byte for byte.
+Each folder holds the passage scripts for one painting, the finished `painting.png`, the `journal.jsonl` that replays it with `paintscript replay`, and a `timelapse.gif` of it being made. The command under each painting repaints it from the repo root, byte for byte. Run under Node, the pixels are the same and the PNG file is not: Node's zlib compresses it differently from Bun's.
 
 ## Low tide
 
