@@ -13,6 +13,12 @@ import { layer } from '../paint/kubelka-munk.js';
 /** What a render shows: the painting, or its relief alone in grey. */
 export type RenderMode = 'color' | 'relief';
 
+/** The finish the painting is seen under: no sheen, the default soft sheen, or gloss varnish. */
+export type Surface = 'matte' | 'satin' | 'varnish';
+
+/** Every surface, for validation. */
+export const SURFACES: readonly Surface[] = ['matte', 'satin', 'varnish'];
+
 /** An 8-bit RGB image, rows top to bottom, 3 bytes per pixel. */
 export interface RgbImage {
   height: number;
@@ -37,13 +43,16 @@ const LIGHT = (() => {
   return { lx, ly, lz, Hx: hx / hn, Hy: hy / hn, Hz, sp0: Hz ** 30 };
 })();
 
+/** Sheen strength on paint color per surface. */
+const SHEEN: Record<Surface, number> = { matte: 0, satin: 0.1, varnish: 0.3 };
+
 /** Lit linear RGB of one canvas pixel (paint color, relief shading, sheen) into `out`. */
-function shadePixel(
+export function shadePixel(
   c: Canvas,
   x: number,
   y: number,
   mode: RenderMode,
-  relief: number,
+  surface: Surface,
   out: Float64Array,
 ): void {
   const { width, K, S, V, baseR } = c;
@@ -61,11 +70,17 @@ function shadePixel(
       g += M_G[k]! * R;
       b += M_B[k]! * R;
     }
+    if (surface === 'varnish') {
+      // varnish cuts surface scatter: darks deepen and colors saturate a little
+      r = Math.max(0, r) ** 1.08;
+      g = Math.max(0, g) ** 1.08;
+      b = Math.max(0, b) ** 1.08;
+    }
   } else {
     r = g = b = 0.42;
   }
-  const gx = (c.surfaceHeight(x + 1, y) - c.surfaceHeight(x - 1, y)) * 1.1 * relief;
-  const gy = (c.surfaceHeight(x, y + 1) - c.surfaceHeight(x, y - 1)) * 1.1 * relief;
+  const gx = (c.surfaceHeight(x + 1, y) - c.surfaceHeight(x - 1, y)) * 1.1;
+  const gy = (c.surfaceHeight(x, y + 1) - c.surfaceHeight(x, y - 1)) * 1.1;
   const nn = Math.hypot(gx, gy, 1);
   const nX = -gx / nn;
   const nY = -gy / nn;
@@ -74,7 +89,7 @@ function shadePixel(
   const shade = Math.min(1.35, Math.max(0.65, 1 + 0.9 * (diff - lz)));
   const sp =
     Math.max(0, Math.max(0, nX * Hx + nY * Hy + nZ * Hz) ** 30 - sp0) *
-    (mode === 'color' ? 0.1 : 0.5);
+    (mode === 'color' ? SHEEN[surface] : 0.5);
   out[0] = Math.max(0, r) * shade + sp;
   out[1] = Math.max(0, g) * shade + sp;
   out[2] = Math.max(0, b) * shade + sp;
@@ -82,11 +97,10 @@ function shadePixel(
 
 /** Options for a full-quality render. */
 export interface RenderOptions {
-  /** Relief strength multiplier. Default 1. */
-  light?: number;
   mode?: RenderMode;
   /** Integer box-downscale step. Default 1. */
   step?: number;
+  surface?: Surface;
   x0?: number;
   x1?: number;
   y0?: number;
@@ -101,7 +115,7 @@ export function render(c: Canvas, opts: RenderOptions = {}): RgbImage {
   const y1 = opts.y1 ?? c.height;
   const st = opts.step ?? 1;
   const mode = opts.mode ?? 'color';
-  const relief = opts.light ?? 1;
+  const surface = opts.surface ?? 'satin';
   const ow = Math.floor((x1 - x0) / st);
   const oh = Math.floor((y1 - y0) / st);
   const rgb = new Uint8Array(ow * oh * 3);
@@ -113,7 +127,7 @@ export function render(c: Canvas, opts: RenderOptions = {}): RgbImage {
       let ab = 0;
       for (let sy = 0; sy < st; sy++)
         for (let sx = 0; sx < st; sx++) {
-          shadePixel(c, x0 + ox * st + sx, y0 + oy * st + sy, mode, relief, px);
+          shadePixel(c, x0 + ox * st + sx, y0 + oy * st + sy, mode, surface, px);
           ar += px[0]!;
           ag += px[1]!;
           ab += px[2]!;
@@ -171,7 +185,7 @@ export function fitRegion(
       for (let s = 0; s < 4; s++) {
         const x = Math.min(W - 1, Math.floor((ox + (s & 1 ? 0.75 : 0.25)) * fx));
         const y = Math.min(H - 1, Math.floor((oy + (s & 2 ? 0.75 : 0.25)) * fy));
-        shadePixel(c, x, y, 'color', 1, px);
+        shadePixel(c, x, y, 'color', 'satin', px);
         ar += px[0]!;
         ag += px[1]!;
         ab += px[2]!;
