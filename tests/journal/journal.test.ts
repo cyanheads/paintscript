@@ -92,6 +92,24 @@ describe('journal', () => {
       );
   });
 
+  it('holds each replayed run to the limits of the painting it replays onto', async () => {
+    const journal = journalOf(await painted());
+    await expect(replayJournal(journal, { limits: { strokes: 3 } })).rejects.toMatchObject({
+      code: 'budget_exceeded',
+      message: expect.stringMatching(
+        /^Run 1 stopped at the strokes limit while replaying \(limits\.strokes is 3\)/,
+      ),
+    });
+    const withCode = (code: string) => ({ ...journal, runs: [{ ...journal.runs[0]!, code }] });
+    await expect(
+      replayJournal(withCode('while (true) {}'), { limits: { timeMs: 30 } }),
+    ).rejects.toMatchObject({ code: 'budget_exceeded' });
+    await expect(replayJournal(withCode('stroke({})'))).rejects.toMatchObject({
+      code: 'invalid_journal',
+      message: expect.stringMatching(/^Run 1 did not replay: stroke\(\): path must be/),
+    });
+  });
+
   it('replays against the reference it names, and no other', async () => {
     const ref = grey(80, 50, 140);
     const journal = journalOf(await painted(ref));

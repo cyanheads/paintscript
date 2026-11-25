@@ -58,6 +58,10 @@ export interface Journal {
 
 /** How to open or replay a journal. */
 export interface JournalReplayOptions {
+  /**
+   * Limits of the painting the journal replays onto; its time, stroke, and memory
+   * limits hold each replayed run. Default `DEFAULT_LIMITS`.
+   */
   limits?: Partial<PaintingLimits>;
   /** The reference image the journal names, when it names one. */
   reference?: RgbImage;
@@ -147,7 +151,8 @@ export async function openJournal(
 
 /**
  * Replay a journal onto a fresh painting, run by run. Throws as `openJournal` does,
- * and `invalid_journal` if a run does not complete.
+ * `budget_exceeded` if a run passes one of the painting's limits, and `invalid_journal`
+ * if a run fails.
  */
 export async function replayJournal(
   journal: Journal,

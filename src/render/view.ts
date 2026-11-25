@@ -5,10 +5,11 @@
  * @module render/view
  */
 
+import { optEnum, options, optNumber } from '../arguments.js';
 import type { Canvas, PixelRect } from '../canvas/canvas.js';
 import { linearRgbToOklab, oklabToLinearRgb } from '../color/oklab.js';
 import { linearToByte } from '../color/srgb.js';
-import { type RgbImage, type Surface, shadePixel } from './render.js';
+import { type RgbImage, SURFACES, type Surface, shadePixel } from './render.js';
 
 /** What a view shows. */
 export type ViewMode = 'color' | 'squint' | 'value' | 'relief' | 'wet';
@@ -26,9 +27,9 @@ export interface Region {
 
 /** What to render. */
 export interface ViewOptions {
-  /** Canvas px between grid lines; every fifth line is stronger. Default none. */
+  /** Canvas px between grid lines, 2–100,000; every fifth line is stronger. Default none. */
   grid?: number;
-  /** Longest side of the output image in px. Default 1024. */
+  /** Longest side of the output image in px, from 16. Default 1024. */
   maxSide?: number;
   mode?: ViewMode;
   /** Default: the whole canvas. Clipped to the canvas. */
@@ -66,13 +67,40 @@ export function regionToRect(r: Region): PixelRect {
   return { x0: r.x, y0: r.y, x1: r.x + r.w, y1: r.y + r.h };
 }
 
-/** Render a view of the canvas. Throws nothing: a region off the canvas renders the whole canvas. */
+const VIEW_KEYS = ['grid', 'maxSide', 'mode', 'surface'] as const;
+
+/**
+ * Check a view's options other than its region, as a script or a caller gave them.
+ * `maxSideLimit` is the largest `maxSide` accepted. Throws `invalid_options` naming `where`.
+ */
+export function readViewOptions(
+  v: unknown,
+  where: string,
+  maxSideLimit: number,
+): Omit<ViewOptions, 'region'> {
+  const o = options(v, where, VIEW_KEYS, 'invalid_options');
+  const mode = optEnum(o, 'mode', VIEW_MODES, where, 'invalid_options');
+  const surface = optEnum(o, 'surface', SURFACES, where, 'invalid_options');
+  const maxSide = optNumber(o, 'maxSide', where, 16, maxSideLimit, 'invalid_options');
+  // a finer grid than 2 px is a solid tint, and drawing it costs a line per step
+  const grid = optNumber(o, 'grid', where, 2, 1e5, 'invalid_options');
+  return {
+    ...(mode && { mode }),
+    ...(surface && { surface }),
+    ...(maxSide !== undefined && { maxSide: Math.round(maxSide) }),
+    ...(grid !== undefined && { grid }),
+  };
+}
+
+/**
+ * Render a view of the canvas from options already checked by `readViewOptions`.
+ * Throws nothing: a region off the canvas renders the whole canvas.
+ */
 export function renderView(c: Canvas, opts: ViewOptions & { surface: Surface }): View {
   const mode = opts.mode ?? 'color';
   const { surface } = opts;
   const region = clipRegion(c, opts.region) ?? { x: 0, y: 0, w: c.width, h: c.height };
-  const maxSide = Math.max(16, Math.round(opts.maxSide ?? 1024));
-  const scale = Math.min(1, maxSide / Math.max(region.w, region.h));
+  const scale = Math.min(1, (opts.maxSide ?? 1024) / Math.max(region.w, region.h));
   const ow = Math.max(1, Math.round(region.w * scale));
   const oh = Math.max(1, Math.round(region.h * scale));
   const fx = region.w / ow;
@@ -122,7 +150,7 @@ export function renderView(c: Canvas, opts: ViewOptions & { surface: Surface }):
     rgb[p * 3 + 1] = linearToByte(g);
     rgb[p * 3 + 2] = linearToByte(b);
   }
-  if (opts.grid && opts.grid > 0) drawGrid(rgb, ow, oh, region, scale, opts.grid);
+  if (opts.grid !== undefined) drawGrid(rgb, ow, oh, region, scale, opts.grid);
   return { image: { width: ow, height: oh, rgb }, mode, region, scale };
 }
 

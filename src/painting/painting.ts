@@ -8,6 +8,7 @@
  */
 
 import type { QuickJSWASMModule } from 'quickjs-emscripten-core';
+import { number, oneOf, point } from '../arguments.js';
 import type { BrushSpec } from '../brush/brush.js';
 import { Canvas, type PixelRect, TEXTURES, type Texture, unionRect } from '../canvas/canvas.js';
 import { type Color, type ColorInput, describeSpectrum, toSpectrum } from '../color/color.js';
@@ -24,6 +25,7 @@ import { type RgbImage, render, SURFACES, type Surface } from '../render/render.
 import {
   clipRegion,
   type Region,
+  readViewOptions,
   rectToRegion,
   regionToRect,
   renderView,
@@ -217,6 +219,8 @@ interface Execution {
 
 const DEFAULT_GROUND = '#8c8377';
 const DEFAULT_SIZE = { width: 1200, height: 900 };
+/** The `limits` field behind each budget a run can exceed. */
+const LIMIT_KEYS = { time: 'timeMs', strokes: 'strokes', memory: 'memoryBytes' } as const;
 const MAX_SIDE = 8192;
 const MAX_AREA = 4096 * 4096;
 /** Stream id for the noise field, distinct from every run index. */
@@ -447,7 +451,8 @@ export class Painting {
     this.names.brushes.clear();
     this.names.palette.clear();
     this.runs = [];
-    for (const r of kept) this.replay(r.code, r.label === undefined ? {} : { label: r.label });
+    // these scripts completed here under the limits, so rebuilding them is not held to the clock
+    for (const r of kept) this.rerun(r.code, r.label, undefined, false);
     return {
       checkpoint,
       runsRemoved: removed.length,
@@ -457,44 +462,77 @@ export class Painting {
   }
 
   /**
-   * Re-run a script that committed before (from a journal, or a run being rebuilt) and
-   * commit it again: no time or stroke cap, nothing rendered. Throws `invalid_journal`
-   * when it doesn't complete, which a script that once committed never does.
+   * Run a script from a journal and commit it, with nothing rendered. A journal is code
+   * this painting did not see run, so the painting's time, stroke, and memory limits
+   * apply as they do to `run`. Throws `budget_exceeded` when the script passes one
+   * (raise it in the painting's `limits` to replay a journal painted under looser ones)
+   * and `invalid_journal` when the script fails, which one that once committed under
+   * this engine version never does.
    */
   replay(code: string, options: ReplayOptions = {}): void {
+    this.rerun(code, options.label, options.onStroke, true);
+  }
+
+  /** Run a script and commit it or throw; `limited` holds it to the painting's time and stroke limits. */
+  private rerun(
+    code: string,
+    label: string | undefined,
+    onStroke: ((stroke: StrokeEvent) => void) | undefined,
+    limited: boolean,
+  ): void {
     const x = this.execute(code, {
       render: false,
-      timeMs: Number.POSITIVE_INFINITY,
-      strokes: Number.POSITIVE_INFINITY,
+      timeMs: limited ? this.limits.timeMs : Number.POSITIVE_INFINITY,
+      strokes: limited ? this.limits.strokes : Number.POSITIVE_INFINITY,
       cancelled: undefined,
-      onStroke: options.onStroke,
+      onStroke,
     });
     const status = statusOf(x);
-    if (status.status !== 'completed') {
-      this.rollback(x);
+    if (status.status === 'completed') {
+      this.commit(code, label, x);
+      return;
+    }
+    this.rollback(x);
+    const run = this.checkpoint + 1;
+    if (status.status === 'budget_exceeded') {
+      const key = LIMIT_KEYS[status.limit];
       throw new PaintscriptError(
-        'invalid_journal',
-        `Run ${this.checkpoint + 1} did not replay: ${status.status === 'script_error' ? status.error.message : status.status}.`,
+        'budget_exceeded',
+        `Run ${run} stopped at the ${status.limit} limit while replaying (limits.${key} is ${this.limits[key]}); raise it to replay this journal.`,
       );
     }
-    this.commit(code, options.label, x);
+    throw new PaintscriptError(
+      'invalid_journal',
+      `Run ${run} did not replay: ${status.status === 'script_error' ? status.error.message : status.status}.`,
+    );
   }
 
-  /** Render a view, by default under the painting's surface; throws `invalid_region` for a region with no pixels on the canvas. */
+  /**
+   * Render a view, by default under the painting's surface. Throws `invalid_options`
+   * for an option out of range and `invalid_region` for a region with no pixels on the
+   * canvas.
+   */
   view(options: ViewOptions = {}): View {
-    if (options.region) this.clip(options.region);
-    return renderView(this.canvas, { ...options, surface: options.surface ?? this.surface });
+    const { region, ...rest } = options;
+    // a view is never larger than its region, so a caller's maxSide has no upper bound
+    const view = readViewOptions(rest, 'view()', Number.POSITIVE_INFINITY);
+    return renderView(this.canvas, {
+      ...view,
+      ...(region && { region: this.clip(region) }),
+      surface: view.surface ?? this.surface,
+    });
   }
 
-  /** The painting at full resolution, by default under its own surface. */
+  /** The painting at full resolution, by default under its own surface. Throws `invalid_options` for a surface it does not know. */
   image(surface: Surface = this.surface): RgbImage {
-    return render(this.canvas, surface);
+    return render(this.canvas, oneOf(surface, 'image()', 'surface', SURFACES, 'invalid_options'));
   }
 
-  /** Paint color at a canvas point (rounded and clamped to the canvas), unlit. */
+  /** Paint color at a canvas point (rounded and clamped to the canvas), unlit. Throws `invalid_options` for a point that is not two finite numbers. */
   at(x: number, y: number): Color {
+    const [px, py] = point([x, y], 'at()');
     return describeSpectrum(
-      this.canvas.reflectanceAt(this.canvas.indexAt(x, y), new Float32Array(NB)),
+      this.canvas.reflectanceAt(this.canvas.indexAt(px, py), new Float32Array(NB)),
     );
   }
 
@@ -503,14 +541,18 @@ export class Painting {
     return this.canvas.wetShare();
   }
 
-  /** Compare the painting with its reference; throws `no_reference` without one, `invalid_region` off the canvas. */
+  /**
+   * Compare the painting with its reference in cells of `cell` px (4–4096). Throws
+   * `no_reference` without one, `invalid_region` off the canvas, `invalid_options` for
+   * a cell out of range.
+   */
   diff(region?: Region, cell = 32): DiffResult {
     if (!this.ref)
       throw new PaintscriptError('no_reference', 'This painting was created without a reference.');
     return this.ref.diff(
       this.canvas,
       regionToRect(this.clip(region)),
-      Math.max(4, Math.round(cell)),
+      Math.round(number(cell, 'diff()', 'cell', 4, 4096, 'invalid_options')),
     );
   }
 
@@ -542,6 +584,13 @@ export class Painting {
   ): Execution {
     const before = this.before();
     const undo = new TileUndo(this.canvas);
+    // the clock only decides whether a run may finish; it never reaches the painting
+    const deadline = performance.now() + o.timeMs;
+    let stop: 'cancelled' | 'time' | undefined;
+    const stopped = () => {
+      stop ??= performance.now() > deadline ? 'time' : o.cancelled?.() ? 'cancelled' : undefined;
+      return stop !== undefined;
+    };
     const session = new RunSession({
       canvas: this.canvas,
       names: this.names,
@@ -551,10 +600,8 @@ export class Painting {
       render: o.render,
       surface: this.surface,
       onStroke: o.onStroke,
+      stopped,
     });
-    // the clock only decides whether a run may finish; it never reaches the painting
-    const deadline = performance.now() + o.timeMs;
-    let stop: Execution['stop'];
     const outcome = runScript(this.qjs, {
       code,
       prelude: PRELUDE,
@@ -568,16 +615,7 @@ export class Painting {
       }),
       host: session.hostFunctions(),
       memoryBytes: this.limits.memoryBytes,
-      shouldInterrupt: () => {
-        stop ??= session.strokeCapHit
-          ? 'strokes'
-          : performance.now() > deadline
-            ? 'time'
-            : o.cancelled?.()
-              ? 'cancelled'
-              : undefined;
-        return stop !== undefined;
-      },
+      shouldInterrupt: () => session.halted(),
     });
     const x: Execution = {
       before,
@@ -653,15 +691,19 @@ export function canvasOf(p: Painting): Canvas {
 }
 
 function statusOf(x: Execution): RunStatus {
-  if (x.stop === 'strokes') return { status: 'budget_exceeded', limit: 'strokes' };
+  /**
+   * A halt decides the status whatever the script did afterwards: once one is set the
+   * vocabulary stops answering, so a script that swallowed the errors that followed and
+   * ran to its end still did not complete.
+   */
+  if (x.stop === 'cancelled') return { status: 'cancelled' };
+  if (x.stop) return { status: 'budget_exceeded', limit: x.stop };
   const o = x.outcome;
   switch (o.kind) {
     case 'completed':
       return { status: 'completed' };
     case 'interrupted':
-      return x.stop === 'cancelled'
-        ? { status: 'cancelled' }
-        : { status: 'budget_exceeded', limit: 'time' };
+      throw new Error('The sandbox interrupted a run that no limit had stopped.');
     case 'out_of_memory':
       return { status: 'budget_exceeded', limit: 'memory' };
     case 'error':

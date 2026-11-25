@@ -7,6 +7,17 @@
  * @module script/vocabulary
  */
 
+import {
+  fail,
+  number,
+  oneOf,
+  optEnum,
+  options,
+  optNumber,
+  point,
+  SLACK,
+  shown,
+} from '../arguments.js';
 import { BRUSH_TYPES, type BrushSpec, STROKE_ENDS, type StrokeSpec } from '../brush/brush.js';
 import { layStroke } from '../brush/lay-stroke.js';
 import type { PathPoint } from '../brush/path.js';
@@ -19,14 +30,14 @@ import { mixSpectra } from '../paint/mix.js';
 import type { StrokeRecord } from '../painting/run-review.js';
 import type { TileUndo } from '../painting/tile-undo.js';
 import type { DiffResult, Reference, ReferenceEdge } from '../reference/reference.js';
-import { SURFACES, type Surface } from '../render/render.js';
+import type { Surface } from '../render/render.js';
 import {
   clipRegion,
   type Region,
+  readViewOptions,
   rectToRegion,
   regionToRect,
   renderView,
-  VIEW_MODES,
   type View,
 } from '../render/view.js';
 import type { HostFunction } from './sandbox.js';
@@ -53,6 +64,12 @@ export interface SessionEnv {
   reference: Reference | undefined;
   /** Render `show()` views; off when replaying, where nothing looks. */
   render: boolean;
+  /**
+   * True once the run has to end for a reason outside the script: its time is up or the
+   * caller cancelled. Asked before every host call and at intervals inside a stroke,
+   * where the sandbox's interrupt cannot reach.
+   */
+  stopped: () => boolean;
   /** The painting's surface, for views that don't name one. */
   surface: Surface;
   undo: TileUndo;
@@ -99,6 +116,12 @@ const BRUSH_KEYS = [
 const REGION_KEYS = ['h', 'w', 'x', 'y'] as const;
 const MAX_PATH_POINTS = 10_000;
 const MAX_NAME = 64;
+/** Brushes a painting keeps, and palette colors: names live in the host, outside the script's heap cap. */
+const MAX_NAMES = 1000;
+/** Names an error message lists before it counts the rest. */
+const LISTED_NAMES = 40;
+/** Largest `maxSide` a script's `show()` takes. */
+const MAX_SHOW_SIDE = 4096;
 const DEFAULT_DIFF_CELL = 32;
 const EMPTY_STROKE: StrokeReport = {
   bbox: null,
@@ -109,8 +132,6 @@ const EMPTY_STROKE: StrokeReport = {
   pickedUp: 0,
 };
 const utf8 = new TextEncoder();
-
-type Obj = Record<string, unknown>;
 
 /** One run's vocabulary and what it recorded. */
 export class RunSession {
@@ -134,6 +155,11 @@ export class RunSession {
     this.env = env;
   }
 
+  /** True once the run cannot complete: it passed its stroke cap, ran out of time, or was cancelled. */
+  halted(): boolean {
+    return this.strokeCapHit || this.env.stopped();
+  }
+
   /** The functions the prelude reaches through `__host`. */
   hostFunctions(): Record<string, HostFunction> {
     const table: Record<string, (args: unknown[]) => unknown> = {
@@ -154,6 +180,12 @@ export class RunSession {
     const out: Record<string, HostFunction> = {};
     for (const [name, fn] of Object.entries(table))
       out[name] = (json) => {
+        /**
+         * A halted run does no more work. The interrupt ends the script the next time
+         * the interpreter polls it, which can be thousands of host calls away, so each
+         * call asks first and returns nothing.
+         */
+        if (this.halted()) return;
         const args = parseArgs(json, name);
         try {
           const result = fn(args);
@@ -176,14 +208,21 @@ export class RunSession {
       if (!spec) fail('unknown_brush', where, `no brush named "${name}"${listing(brushes)}`);
       return spec;
     }
-    brushes.set(name, this.readBrush(args[1], where));
+    const spec = this.readBrush(args[1], where);
+    if (!brushes.has(name) && brushes.size >= MAX_NAMES)
+      fail(
+        'invalid_brush',
+        where,
+        `this painting already has ${MAX_NAMES} named brushes; redefine one of them, or pass a spec to stroke() inline`,
+      );
+    brushes.set(name, spec);
     return name;
   }
 
   private stroke(args: unknown[]): StrokeReport {
     const where = 'stroke()';
     const { canvas, undo, limits } = this.env;
-    if (this.strokeCapHit || this.strokes.length >= limits.strokes) {
+    if (this.strokes.length >= limits.strokes) {
       this.strokeCapHit = true;
       return EMPTY_STROKE;
     }
@@ -211,6 +250,7 @@ export class RunSession {
     }
     const result = layStroke(canvas, spec, {
       beforeWrite: (rect) => undo.save(rect, ['film', 'volume']),
+      shouldStop: this.env.stopped,
     });
     const first = path[0]!;
     const last = path[path.length - 1]!;
@@ -277,6 +317,12 @@ export class RunSession {
       return describeSpectrum(R);
     }
     const R = this.color(args[1], `${where} color`);
+    if (!palette.has(name) && palette.size >= MAX_NAMES)
+      fail(
+        'invalid_color',
+        where,
+        `this painting already has ${MAX_NAMES} palette colors; reuse one of their names, or keep the color in a variable`,
+      );
     palette.set(name, R);
     return describeSpectrum(R);
   }
@@ -332,11 +378,7 @@ export class RunSession {
   private show(args: unknown[]): void {
     const where = 'show()';
     const rect = args[0] == null ? undefined : this.region(args[0], where);
-    const o = options(args[1], where, ['grid', 'maxSide', 'mode', 'surface'], 'invalid_options');
-    const mode = optEnum(o, 'mode', VIEW_MODES, where, 'invalid_options');
-    const surface = optEnum(o, 'surface', SURFACES, where, 'invalid_options');
-    const maxSide = optNumber(o, 'maxSide', where, 16, 4096, 'invalid_options');
-    const grid = optNumber(o, 'grid', where, 2, 1e5, 'invalid_options');
+    const view = readViewOptions(args[1], where, MAX_SHOW_SIDE);
     if (this.viewCalls++ >= this.env.limits.views) {
       this.viewsDropped++;
       return;
@@ -344,11 +386,9 @@ export class RunSession {
     if (!this.env.render) return;
     this.views.push(
       renderView(this.env.canvas, {
+        ...view,
         ...(rect && { region: rectToRegion(rect) }),
-        ...(mode && { mode }),
-        surface: surface ?? this.env.surface,
-        ...(maxSide !== undefined && { maxSide: Math.round(maxSide) }),
-        ...(grid !== undefined && { grid }),
+        surface: view.surface ?? this.env.surface,
       }),
     );
   }
@@ -438,8 +478,15 @@ export class RunSession {
           where,
           `path[${i}] (${x}, ${y}) is more than a canvas width or height off the ${W}×${H} canvas`,
         );
-      if (pressure !== undefined && (pressure < 0 || pressure > 1))
-        fail('invalid_stroke', where, `path[${i}] pressure must be from 0 to 1 (got ${pressure})`);
+      if (pressure !== undefined) {
+        if (pressure < -SLACK || pressure > 1 + SLACK)
+          fail(
+            'invalid_stroke',
+            where,
+            `path[${i}] pressure must be from 0 to 1 (got ${pressure})`,
+          );
+        p[2] = Math.min(1, Math.max(0, pressure));
+      }
       if (i) {
         const q = v[i - 1] as number[];
         length += Math.hypot(x! - q[0]!, y! - q[1]!);
@@ -523,86 +570,12 @@ function parseArgs(json: string, name: string): unknown[] {
   return args;
 }
 
-function fail(code: PaintscriptErrorCode, where: string, message: string): never {
-  throw new PaintscriptError(code, `${where}: ${message}`);
-}
-
-/** A value as an error message quotes it, cut to 60 characters. */
-function shown(v: unknown): string {
-  const s = v === undefined ? 'nothing' : (JSON.stringify(v) ?? String(v));
-  return s.length > 60 ? `${s.slice(0, 57)}...` : s;
-}
-
-/** "; defined: a, b" for an error naming what exists, or a note that nothing does. */
+/** "; defined: a, b" for an error naming what exists (the first `LISTED_NAMES`, then a count of the rest), or a note that nothing does. */
 function listing(map: ReadonlyMap<string, unknown>): string {
-  return map.size ? `; defined: ${[...map.keys()].join(', ')}` : '; none are defined yet';
-}
-
-function options(
-  v: unknown,
-  where: string,
-  keys: readonly string[],
-  code: PaintscriptErrorCode,
-): Obj {
-  if (v == null) return {};
-  if (typeof v !== 'object' || Array.isArray(v))
-    fail(code, where, `expected an options object (got ${shown(v)})`);
-  for (const k of Object.keys(v))
-    if (!keys.includes(k)) fail(code, where, `unknown option "${k}"; it takes ${keys.join(', ')}`);
-  return v as Obj;
-}
-
-function number(
-  v: unknown,
-  where: string,
-  key: string,
-  min: number,
-  max: number,
-  code: PaintscriptErrorCode,
-): number {
-  if (typeof v !== 'number' || !Number.isFinite(v) || v < min || v > max)
-    fail(code, where, `${key} must be a number from ${min} to ${max} (got ${shown(v)})`);
-  return v;
-}
-
-function optNumber(
-  o: Obj,
-  key: string,
-  where: string,
-  min: number,
-  max: number,
-  code: PaintscriptErrorCode,
-): number | undefined {
-  return o[key] == null ? undefined : number(o[key], where, key, min, max, code);
-}
-
-function oneOf<T extends string>(
-  v: unknown,
-  where: string,
-  key: string,
-  values: readonly T[],
-  code: PaintscriptErrorCode,
-): T {
-  if (typeof v !== 'string' || !(values as readonly string[]).includes(v))
-    fail(code, where, `${key} must be one of ${values.join(', ')} (got ${shown(v)})`);
-  return v as T;
-}
-
-function optEnum<T extends string>(
-  o: Obj,
-  key: string,
-  values: readonly T[],
-  where: string,
-  code: PaintscriptErrorCode,
-): T | undefined {
-  return o[key] == null ? undefined : oneOf(o[key], where, key, values, code);
-}
-
-function point(args: unknown[], where: string): [number, number] {
-  const [x, y] = args;
-  if (typeof x !== 'number' || typeof y !== 'number' || !Number.isFinite(x) || !Number.isFinite(y))
-    fail('invalid_options', where, `takes (x, y) as finite numbers (got ${shown(args)})`);
-  return [x, y];
+  if (!map.size) return '; none are defined yet';
+  const names = [...map.keys()];
+  const rest = names.length - LISTED_NAMES;
+  return `; defined: ${names.slice(0, LISTED_NAMES).join(', ')}${rest > 0 ? `, and ${rest} more` : ''}`;
 }
 
 function intersect(a: PixelRect, b: PixelRect): PixelRect {

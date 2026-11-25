@@ -219,6 +219,98 @@ describe('Painting.run', () => {
       const p = await make();
       expect(p.run('while (true) {}', { cancelled: () => true }).status).toBe('cancelled');
     });
+
+    it('lays nothing more once the caller cancels, however far off the next interrupt is', async () => {
+      const p = await make();
+      const blank = look(p);
+      let laid = 0;
+      const r = p.run(
+        "for (let i = 0; i < 400; i++) stroke({ path: [[10, 10 + (i % 80)], [150, 10 + (i % 80)]], brush: { type: 'round', width: 4 }, color: '#000000' });",
+        { onStroke: () => laid++, cancelled: () => laid >= 3 },
+      );
+      expect(r).toMatchObject({ status: 'cancelled', checkpoint: 0 });
+      expect(r.stats.strokes).toBe(3);
+      expect(look(p)).toEqual(blank);
+    });
+
+    it('stops inside one long stroke', async () => {
+      const p = await Painting.create({ width: 800, height: 600, seed: 11 });
+      const blank = look(p);
+      // six rows a brush-width apart, so what the stroke covers grows with how far it got
+      const code =
+        "stroke({ path: [[0, 50], [800, 50], [800, 150], [0, 150], [0, 250], [800, 250], [800, 350], [0, 350], [0, 450], [800, 450], [800, 550], [0, 550]], brush: { type: 'flat', width: 100, reservoir: 20 }, color: '#1d3557', corners: true, load: 1 });";
+      let whole = 0;
+      p.run(code, { dryRun: true, onStroke: (s) => (whole = s.covered) });
+      let polls = 0;
+      let cut = 0;
+      const r = p.run(code, { onStroke: (s) => (cut = s.covered), cancelled: () => ++polls > 2 });
+      expect(r.status).toBe('cancelled');
+      expect(cut).toBeGreaterThan(0);
+      expect(cut).toBeLessThan(whole / 2);
+      expect(look(p)).toEqual(blank);
+    });
+  });
+
+  it('keeps at most 1000 named brushes and 1000 palette colors', async () => {
+    const p = await make();
+    expect(
+      p.run("for (let i = 0; i < 1000; i++) palette('c' + i, '#123456'); palette('c7', '#654321');")
+        .status,
+    ).toBe('completed');
+    expect(scriptError(p.run("palette('one-more', '#123456')"))!.message).toMatch(
+      /already has 1000 palette colors/,
+    );
+    expect(
+      scriptError(
+        p.run("for (let i = 0; i <= 1000; i++) brush('b' + i, { type: 'flat', width: 4 });"),
+      )!.message,
+    ).toMatch(/already has 1000 named brushes/);
+    // an error naming what exists lists the first 40 and counts the rest
+    expect(
+      scriptError(
+        p.run("stroke({ path: [[1, 2]], brush: { type: 'flat', width: 4 }, color: 'nope' })"),
+      )!.message,
+    ).toMatch(/; defined: c0, c1, .*, c39, and 960 more$/);
+  });
+
+  it('reads a number within float error of a bound as the bound', async () => {
+    const p = await make();
+    expect(
+      p.run(
+        "stroke({ path: [[10, 10, Math.sin(2 * Math.PI)], [90, 40, 1 + 1e-12]], brush: { type: 'flat', width: 9 }, color: '#000000', load: 1 + 1e-12 });",
+      ).status,
+    ).toBe('completed');
+    expect(
+      scriptError(
+        p.run("stroke({ path: [[10, 10, -0.001], [90, 40]], brush: { type: 'flat', width: 9 } })"),
+      )!.message,
+    ).toMatch(/path\[0\] pressure must be from 0 to 1/);
+  });
+});
+
+describe('Painting.view, at, and image', () => {
+  it('reject arguments they cannot use', async () => {
+    const p = await make();
+    const bad: (() => unknown)[] = [
+      () => p.view({ maxSide: Number.NaN }),
+      () => p.view({ maxSide: 8 }),
+      () => p.view({ grid: 1e-9 }),
+      () => p.view({ mode: 'xray' as never }),
+      () => p.view({ zoom: 2 } as never),
+      () => p.at(Number.NaN, 0),
+      () => p.image('gloss' as never),
+    ];
+    for (const call of bad)
+      expect(call).toThrow(expect.objectContaining({ code: 'invalid_options' }));
+    expect(() => p.view({ region: { x: 900, y: 0, w: 10, h: 10 } })).toThrow(
+      expect.objectContaining({ code: 'invalid_region' }),
+    );
+    expect(p.view({ maxSide: 64, mode: 'value', grid: 20 }).image.width).toBe(64);
+    expect(() => p.at(Number.NaN, 0)).toThrow(
+      'at(): takes (x, y) as finite numbers (got ["NaN",0])',
+    );
+    // a maxSide past the canvas asks for full resolution
+    expect(p.view({ maxSide: Number.POSITIVE_INFINITY }).image.width).toBe(160);
   });
 });
 
@@ -297,6 +389,9 @@ describe('Painting with a reference', () => {
     expect(angle).toBe((Math.PI / 2).toFixed(2));
     expect(closer).toBe('true');
     expect(p.diff().worst.length).toBeGreaterThan(0);
+    expect(() => p.diff(undefined, Number.NaN)).toThrow(
+      expect.objectContaining({ code: 'invalid_options' }),
+    );
   });
 
   it('runs a script without a reference with ref null and diff refused', async () => {

@@ -37,7 +37,7 @@ run: each script file is one passage, run in order on one canvas.
   --journal <file>     write the journal (JSON Lines) that replays the painting
   --timelapse <file>   write a timelapse GIF of the painting being made
   --views <dir>        save each script's show() views there as PNG
-  --width <px>        canvas width (default 1200, or fitted to the reference)
+  --width <px>         canvas width (default 1200, or fitted to the reference)
   --height <px>        canvas height (default 900, or fitted to the reference)
   --ground <hex>       ground color (default #8c8377)
   --texture <name>     ${TEXTURES.join(' | ')} (default fine_weave)
@@ -47,7 +47,7 @@ run: each script file is one passage, run in order on one canvas.
   --surface <name>     ${SURFACES.join(' | ')}, the finish it is seen under (default satin)
 
 replay: re-run a journal on a fresh canvas, with the size, ground, texture, surface, and
-seed it records.
+seed it records. A replay has no time or stroke limit; Ctrl-C stops it.
   --out, --timelapse as above; --reference for a journal painted against one
 
 vocabulary: print the script API as TypeScript declarations.
@@ -62,6 +62,17 @@ export interface CliIo {
 const stdio: CliIo = {
   out: (t) => process.stdout.write(t),
   err: (t) => process.stderr.write(t),
+};
+
+/**
+ * Limits for replaying a journal from the command line: the person at the terminal
+ * chose the file and can stop it, and the command has no flag to raise a limit, so a
+ * journal painted on a faster machine or under a higher stroke limit must not fail on
+ * either. The memory limit stays.
+ */
+const REPLAY_LIMITS = {
+  timeMs: Number.POSITIVE_INFINITY,
+  strokes: Number.POSITIVE_INFINITY,
 };
 
 /** Run the command; resolves to the exit code. Throws only on a bug. */
@@ -186,7 +197,10 @@ async function replayCommand(files: string[], v: Values, io: CliIo): Promise<num
       `paintscript: this journal was painted by engine ${journal.header.engine}; replaying under ${VERSION} may not match\n`,
     );
   const reference = v.reference ? decodePng(await readFile(v.reference)) : undefined;
-  const painting = await replayJournal(journal, reference ? { reference } : {});
+  const painting = await replayJournal(journal, {
+    limits: REPLAY_LIMITS,
+    ...(reference && { reference }),
+  });
   io.out(`replayed ${journal.runs.length} runs\n`);
   await writeFile(v.out, encodePng(painting.image()));
   io.out(`wrote ${v.out}\n`);
@@ -200,7 +214,10 @@ async function timelapse(
   journal: Journal,
   reference: RgbImage | undefined,
 ) {
-  const film = await renderTimelapse(journal, reference ? { reference } : {});
+  const film = await renderTimelapse(journal, {
+    limits: REPLAY_LIMITS,
+    ...(reference && { reference }),
+  });
   await writeFile(path, film.bytes);
   io.out(
     `wrote ${path} (${film.width}×${film.height}, ${film.frames} frames, ${(film.durationMs / 1000).toFixed(1)} s)\n`,

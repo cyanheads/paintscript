@@ -20,7 +20,18 @@ import { type PathPoint, resamplePath } from './path.js';
 export interface LayOptions {
   /** Called once before the kernel writes, with a rectangle bounding every pixel the stroke can change. */
   beforeWrite?: (rect: PixelRect) => void;
+  /**
+   * Asked every `POLL_PX` px the bristles sweep; returning true ends the stroke where it
+   * is. The caller then discards the run, so a cut stroke never reaches a painting.
+   */
+  shouldStop?: () => boolean;
 }
+
+/**
+ * Bristle travel between `shouldStop` polls, in px across the stroke summed over its
+ * samples: about 10 ms of kernel time, whatever the brush width.
+ */
+const POLL_PX = 50_000;
 
 /** Visits per px² of the original sampling grid (1/0.6 across × 2 along); deposit rates are per visit. */
 const BASE_VISITS = 2 / 0.6;
@@ -182,6 +193,9 @@ export function layStroke(canvas: Canvas, st: StrokeSpec, opts: LayOptions = {})
     return { bbox: null, covered: 0, gaps: 0, mixed: 0, pickedUp: 0, length };
   opts.beforeWrite?.({ x0: rx0, y0: ry0, x1: rx1, y1: ry1 });
 
+  /** Px swept since the last `shouldStop` poll. */
+  let swept = 0;
+
   // measurements
   let visited = 0;
   let visitedPainted = 0;
@@ -329,6 +343,11 @@ export function layStroke(canvas: Canvas, st: StrokeSpec, opts: LayOptions = {})
     const rim1 = r() * 6.28;
     const rim2 = r() * 6.28;
     for (let v = -Rv; v <= Rv; v += step) {
+      swept += 2 * Ru;
+      if (swept > POLL_PX) {
+        swept = 0;
+        if (opts.shouldStop?.()) break;
+      }
       const kv = Math.round((v + Rv) / step);
       for (let u = -Ru; u <= Ru; u += step) {
         const theta = Math.atan2(v / Rv, u / Ru);
@@ -376,6 +395,11 @@ export function layStroke(canvas: Canvas, st: StrokeSpec, opts: LayOptions = {})
       if (end === 'stop' && !dab && rem < 3) pr *= 1.7;
       const wEff = w * widthFactor(type, pr);
       if (wEff < 0.05) continue;
+      swept += wEff;
+      if (swept > POLL_PX) {
+        swept = 0;
+        if (opts.shouldStop?.()) break;
+      }
       const nx = -q.ty;
       const ny = q.tx;
       const trem = Math.sin(k * 0.045 + tremor) * 0.6 * streak;

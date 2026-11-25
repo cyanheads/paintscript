@@ -14,6 +14,7 @@ export type PaintscriptErrorCode =
   | 'invalid_options'
   | 'invalid_image'
   | 'invalid_journal'
+  | 'budget_exceeded'
   | 'no_reference'
   | 'reference_mismatch'
   | 'checkpoint_not_found'
