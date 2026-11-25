@@ -5,8 +5,8 @@
  * @module cli/main
  */
 
-import { readFile, writeFile } from 'node:fs/promises';
-import { basename } from 'node:path';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { basename, join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { TEXTURES } from '../canvas/canvas.js';
 import { PaintscriptError } from '../errors.js';
@@ -36,7 +36,8 @@ run: each script file is one passage, run in order on one canvas.
   --out <file>         PNG of the finished painting (required)
   --journal <file>     write the journal (JSON Lines) that replays the painting
   --timelapse <file>   write a timelapse GIF of the painting being made
-  --width <px>         canvas width (default 1200, or fitted to the reference)
+  --views <dir>        save each script's show() views there as PNG
+  --width <px>        canvas width (default 1200, or fitted to the reference)
   --height <px>        canvas height (default 900, or fitted to the reference)
   --ground <hex>       ground color (default #8c8377)
   --texture <name>     ${TEXTURES.join(' | ')} (default fine_weave)
@@ -119,6 +120,7 @@ function parse(argv: readonly string[]) {
       out: { type: 'string' },
       journal: { type: 'string' },
       timelapse: { type: 'string' },
+      views: { type: 'string' },
       width: { type: 'string' },
       height: { type: 'string' },
       ground: { type: 'string' },
@@ -160,6 +162,7 @@ async function runCommand(files: string[], v: Values, io: CliIo): Promise<number
       defaultView: false,
     });
     report(io, file, result);
+    await saveViews(io, v.views, file, result);
     if (result.status !== 'completed') return 1;
   }
   await writeFile(v.out, encodePng(painting.image(surface)));
@@ -226,6 +229,24 @@ function report(io: CliIo, file: string, r: RunResult) {
   for (const line of r.log.split('\n').filter(Boolean)) io.out(`  ${line}\n`);
   if (r.logTruncated) io.out('  (log truncated)\n');
   for (const o of r.observations) io.out(`  · ${o}\n`);
+  if (r.viewsDropped)
+    io.out(`  (${r.viewsDropped} show() calls past the per-run cap were dropped)\n`);
+}
+
+/** Write a run's `show()` views as `<dir>/<script>-<n>-<mode>.png`, or say they were not written. */
+async function saveViews(io: CliIo, dir: string | undefined, file: string, r: RunResult) {
+  if (!r.views.length) return;
+  if (!dir) {
+    io.out(`  (${r.views.length} show() views not saved; pass --views <dir>)\n`);
+    return;
+  }
+  await mkdir(dir, { recursive: true });
+  const stem = basename(file).replace(/\.[^.]*$/, '');
+  for (const [i, view] of r.views.entries()) {
+    const path = join(dir, `${stem}-${i + 1}-${view.mode}.png`);
+    await writeFile(path, encodePng(view.image));
+    io.out(`  view ${path}\n`);
+  }
 }
 
 function usage(io: CliIo, why: string): number {

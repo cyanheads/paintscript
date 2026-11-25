@@ -154,7 +154,7 @@ The checkpoint is the number of committed runs. Pass `expectCheckpoint` and a ru
 
 | Command | What it does |
 |:---|:---|
-| `paintscript run <script.js>... --out <png>` | Run each file as one passage, in order, on one canvas. `--journal`, `--timelapse`, `--width`, `--height`, `--ground`, `--texture`, `--seed`, `--reference <png>`, `--fit`, `--surface` |
+| `paintscript run <script.js>... --out <png>` | Run each file as one passage, in order, on one canvas. `--journal`, `--timelapse`, `--views <dir>` (save `show()` views as PNG), `--width`, `--height`, `--ground`, `--texture`, `--seed`, `--reference <png>`, `--fit`, `--surface` |
 | `paintscript replay <journal.jsonl> --out <png>` | Replay a journal on a fresh canvas. `--timelapse`, `--surface`, and `--reference` for a journal painted against one |
 | `paintscript vocabulary` | Print the script API as TypeScript declarations |
 

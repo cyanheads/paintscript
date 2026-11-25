@@ -76,6 +76,29 @@ describe('paintscript', () => {
     expect(await readFile(f('q.png'))).toEqual(await readFile(f('p.png')));
   });
 
+  it('saves show() views with --views, and says so when they are not saved', async () => {
+    await writeFile(
+      join(dir, 'look.js'),
+      "show(undefined, { mode: 'value', maxSide: 40 }); show({ x: 0, y: 0, w: 60, h: 40 }, { mode: 'squint', maxSide: 30 });",
+    );
+    const size = ['--width', '120', '--height', '80'];
+    const saved = await cli(
+      'run',
+      join(dir, 'look.js'),
+      '--out',
+      join(dir, 'look.png'),
+      '--views',
+      join(dir, 'views'),
+      ...size,
+    );
+    expect(saved.code).toBe(0);
+    expect(saved.out).toContain(`view ${join(dir, 'views', 'look-1-value.png')}`);
+    const squint = decodePng(await readFile(join(dir, 'views', 'look-2-squint.png')));
+    expect(Math.max(squint.width, squint.height)).toBe(30);
+    const unsaved = await cli('run', join(dir, 'look.js'), '--out', join(dir, 'look.png'), ...size);
+    expect(unsaved.out).toContain('2 show() views not saved; pass --views <dir>');
+  });
+
   it('stops at a script error with the file, line, and column', async () => {
     const r = await cli(
       'run',
