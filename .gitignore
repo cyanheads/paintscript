@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+.tsbuildinfo
+*.log
+.env
+.DS_Store
+*.tgz
+.vitest/
+# Paintings, journals, and timelapses written by local runs.
+out/
