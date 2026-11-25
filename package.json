@@ -1,7 +1,7 @@
 {
   "name": "paintscript",
   "version": "0.1.0",
-  "description": "Paint by code: sandboxed JavaScript lays bristle strokes of Kubelka–Munk paint, rendered to PNG and timelapse GIF.",
+  "description": "Paint by code: JavaScript lays simulated brush strokes, from thick oil paint to ink and watercolor-like washes, saved as a PNG and a timelapse GIF of the painting being made.",
   "type": "module",
   "license": "Apache-2.0",
   "author": "Casey Hand <casey@caseyjhand.com> (https://caseyjhand.com)",

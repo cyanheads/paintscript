@@ -4,4 +4,4 @@ All notable changes to this project. Each entry links to its full per-version fi
 
 ## [0.1.0](changelog/0.1.x/0.1.0.md) — 2026-11-25
 
-First release: paint by code. Sandboxed JavaScript passages lay bristle strokes of Kubelka–Munk paint on a simulated canvas, with exact replay to PNG and timelapse GIF.
+First release: paint by code. JavaScript lays simulated brush strokes, from thick oil paint to ink and watercolor-like washes, with exact replay to a PNG and a timelapse GIF.

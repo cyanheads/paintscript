@@ -1,6 +1,6 @@
 <div align="center">
   <h1>paintscript</h1>
-  <p><b>Paint by code: sandboxed JavaScript lays bristle strokes of Kubelka–Munk paint, rendered to PNG and timelapse GIF.</b></p>
+  <p><b>Paint by code: JavaScript lays simulated brush strokes, from thick oil paint to ink and watercolor-like washes, saved as a PNG and a timelapse GIF of the painting being made.</b></p>
 </div>
 
 <div align="center">
@@ -13,7 +13,7 @@
 
 A painting is one simulated canvas. You paint it in passages: each passage is a short JavaScript script that mixes paint, loads brushes, and lays strokes, and it runs in a WebAssembly sandbox where it either lands whole or leaves no trace. The scripts are the record. Replaying them on a fresh canvas with the same seed reproduces the painting byte for byte, so every painting can also be filmed as a timelapse GIF.
 
-Colors are 8-band reflectance spectra that mix by Kubelka–Munk, so blue and yellow make green and a glaze tints what is under it. Brushes are bundles of bristles swept along a spline; streaks, dry-brush breaks, ridges, and carried color come out of the sweep. Wet paint mixes with the next stroke, dry paint takes it cleanly, and the surface is lit by its own relief. The script API has no shapes, fills, or gradients, so every form in a painting is a stroke the script author placed. The API is written for language models to paint with, and works the same for a person writing JavaScript.
+The paint behaves like real paint. Colors mix the way pigments do, so blue and yellow make green; opaque paint covers what is under it, and a glaze only tints it. The same paint goes on thick and textured like oil, or thinned and transparent like ink or a watercolor wash. Each brush is a bundle of bristles, so streaks, dry-brush breaks, and ridges come from the stroke itself. Wet paint blends into the next stroke, dry paint takes it cleanly, and thick paint catches the light. There are no shapes, fills, or gradients to call: every form in a painting is a stroke the script placed. The API is written for AI models to paint with, and works the same for a person writing JavaScript.
 
 <p align="center">
   <img src="examples/low-tide/painting.png" alt="Low tide: a beach at sunset, posts leading out across wet sand to the sea, a beached boat, gulls in a gold and rose sky" width="49%">
@@ -175,7 +175,7 @@ Runs on Node ≥22 and Bun. The sandbox is QuickJS compiled to WebAssembly, so t
 | Path | Purpose |
 |:---|:---|
 | `src/color/` | sRGB ↔ 8-band spectra, OKLab, the `Color` values scripts receive |
-| `src/paint/` | Kubelka–Munk absorption and scattering per paint kind, mixing, film layering |
+| `src/paint/` | How each kind of paint absorbs and scatters light (the Kubelka–Munk model), mixing, layering |
 | `src/brush/` | Brush and stroke types, path resampling, the bristle kernel |
 | `src/canvas/` | Weave, dry base, wet film |
 | `src/render/` | Lit render and the view modes |
