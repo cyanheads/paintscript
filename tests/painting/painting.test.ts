@@ -111,6 +111,14 @@ describe('Painting.run', () => {
     expect(r.log).toBe(`${p.palette.sky!.hex}\n`);
   });
 
+  it('mixes zero parts of a color as none of it', async () => {
+    const p = await make();
+    const r = p.run(
+      "log(JSON.stringify(mix(['#2f5fa8', 2], ['#f2efe6', 0], '#b8452b').bands) === JSON.stringify(mix(['#2f5fa8', 2], '#b8452b').bands))",
+    );
+    expect(r.log).toBe('true\n');
+  });
+
   it('replaces the clock and Math.random with errors that point to rand()', async () => {
     const p = await make();
     for (const code of ['Math.random()', 'Date.now()', 'new Date()'])
@@ -153,7 +161,8 @@ describe('Painting.run', () => {
         "stroke({ path: [[0, 0], [5000, 0]], brush: { type: 'flat', width: 4 } })",
         /more than a canvas width/,
       ],
-      ["mix(['#fff', 0])", /\[color, parts > 0\]/],
+      ["mix(['#fff', -1])", /\[color, parts ≥ 0\]/],
+      ["mix(['#fff', 0], ['#000', 0])", /at least one color needs parts above 0/],
       ['dry({ x: 500, y: 500, w: 10, h: 10 })', /has no pixels on the 160×100 canvas/],
       ["show(undefined, { mode: 'xray' })", /mode must be one of color, squint/],
       ['diff()', /needs a reference image/],

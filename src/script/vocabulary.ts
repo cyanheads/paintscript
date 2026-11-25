@@ -241,13 +241,16 @@ export class RunSession {
         a.length !== 2 ||
         typeof parts !== 'number' ||
         !Number.isFinite(parts) ||
-        parts <= 0 ||
+        parts < 0 ||
         parts > 1e6
       )
-        fail('invalid_color', label, `must be a color or [color, parts > 0] (got ${shown(a)})`);
+        fail('invalid_color', label, `must be a color or [color, parts ≥ 0] (got ${shown(a)})`);
       return [this.color(a[0], label), parts];
     });
-    return describeSpectrum(mixSpectra(parts));
+    // zero parts of a color is none of it
+    const used = parts.filter(([, p]) => p > 0);
+    if (!used.length) fail('invalid_color', where, 'at least one color needs parts above 0');
+    return describeSpectrum(mixSpectra(used));
   }
 
   private palette(args: unknown[]): unknown {

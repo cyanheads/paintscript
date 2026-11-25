@@ -77,7 +77,7 @@ interface StrokeOptions {
   color?: ColorInput;
   /** Default 'opaque'. */
   paint?: PaintKind;
-  /** Paint on the brush, 0–1. Default 0.7. */
+  /** Paint on the brush, 0–1. Below about 0.4 the brush runs dry and skips across the canvas weave; for a thin, even film (a glaze), keep load up and raise thinner. Default 0.7. */
   load?: number;
   /** Pressure where a point gives none, 0–1. Near 0 thins round, soft, and filbert brushes to a point. Default 0.7. */
   pressure?: number;
@@ -85,7 +85,7 @@ interface StrokeOptions {
   thinner?: number;
   /** lift: tapers out (default). taper: thins to a point. stop: ends square, pressed in. flick: tapers long and thin. */
   end?: 'lift' | 'taper' | 'stop' | 'flick';
-  /** How fully the brush meets the surface, 0–1; lower touches only the weave's tops and ridges (scumble, dry brush). Default 1. */
+  /** How fully the brush meets the surface, 0–1; lower touches only the tops of the canvas weave (scumble, dry brush). Dried paint does not change which tops it catches. Default 1. */
   contact?: number;
   /** Straight segments between points instead of a curve. Default false. */
   corners?: boolean;
@@ -117,7 +117,7 @@ declare function brush(): Record<string, BrushSpec>;
 /** Lay one stroke. It mixes with wet paint it crosses and sits cleanly on dry paint. */
 declare function stroke(options: StrokeOptions): StrokeResult;
 
-/** Mix paints by parts (Kubelka–Munk, as on a palette): mix(['#1c3f94', 2], '#f2efe6') is 2 parts blue to 1 white. */
+/** Mix paints by parts (Kubelka–Munk, as on a palette): mix(['#1c3f94', 2], '#f2efe6') is 2 parts blue to 1 white. Zero parts leaves a color out. */
 declare function mix(...parts: Array<ColorInput | [color: ColorInput, parts: number]>): Color;
 
 /** Name a color (kept across runs; usable wherever a color goes). Returns it. */
