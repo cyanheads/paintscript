@@ -5,6 +5,15 @@
  * @module painting/run-review
  */
 
+/**
+ * A stroke's share of the work of making the painting, √(length × width) with a dab
+ * counted as a short stroke: a timelapse spaces its frames by this, so a passage of
+ * small dabs gets frames in proportion and a few broad sweeps don't take over.
+ */
+export function brushwork(length: number, width: number): number {
+  return Math.sqrt(Math.max(2, length || width * 0.45) * width);
+}
+
 /** One laid stroke as the review sees it. */
 export interface StrokeRecord {
   /** Direction from the first path point to the last, radians; null for a dab without one or a closed path. */

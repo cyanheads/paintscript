@@ -31,8 +31,9 @@ import {
 } from '../render/view.js';
 import { PRELUDE } from '../script/prelude.js';
 import { loadQuickJS, runScript, type ScriptOutcome } from '../script/sandbox.js';
-import { type Names, RunSession, type StrokeReport } from '../script/vocabulary.js';
+import { type Names, RunSession, type StrokeEvent } from '../script/vocabulary.js';
 import {
+  brushwork,
   observe,
   type RunReview,
   reviewStrokes,
@@ -117,7 +118,13 @@ export interface RunOptions {
   /** Kept with the run in the history. */
   label?: string;
   /** Called after each stroke lands. */
-  onStroke?: (stroke: StrokeReport) => void;
+  onStroke?: (stroke: StrokeEvent) => void;
+}
+
+/** How to replay a committed script. */
+export interface ReplayOptions {
+  label?: string;
+  onStroke?: (stroke: StrokeEvent) => void;
 }
 
 /** What a run did, whether or not it landed. */
@@ -168,9 +175,9 @@ export type RunResult = RunReport & RunStatus;
 
 /** A committed run as the history keeps it. */
 export interface RunEntry {
+  /** Brushwork summed over the run's strokes: how a timelapse spaces its frames. */
+  brushwork: number;
   code: string;
-  /** Pixels painted, summed over strokes. */
-  coverage: number;
   label?: string;
   strokes: number;
 }
@@ -210,6 +217,9 @@ const MAX_AREA = 4096 * 4096;
 /** Stream id for the noise field, distinct from every run index. */
 const NOISE_STREAM = 0x6e6f6973;
 
+/** Set by `Painting`'s static block; read through `canvasOf`. */
+let peekCanvas: (p: Painting) => Canvas;
+
 /** One painting and its history. Create with `Painting.create`. */
 export class Painting {
   readonly width: number;
@@ -225,6 +235,10 @@ export class Painting {
   private readonly names: Names = { brushes: new Map(), palette: new Map() };
   private canvas: Canvas;
   private runs: Committed[] = [];
+
+  static {
+    peekCanvas = (p) => p.canvas;
+  }
 
   private constructor(init: {
     ground: Float32Array;
@@ -311,11 +325,11 @@ export class Painting {
 
   /** Committed runs, oldest first. */
   get history(): readonly RunEntry[] {
-    return this.runs.map(({ code, label, strokes, coverage }) => ({
+    return this.runs.map(({ code, label, strokes, brushwork }) => ({
       code,
-      strokes,
-      coverage,
       ...(label !== undefined && { label }),
+      strokes,
+      brushwork,
     }));
   }
 
@@ -346,6 +360,7 @@ export class Painting {
     const x = this.execute(code, {
       render: true,
       timeMs: this.limits.timeMs,
+      strokes: this.limits.strokes,
       cancelled: options.cancelled,
       onStroke: options.onStroke,
     });
@@ -422,7 +437,7 @@ export class Painting {
     this.names.brushes.clear();
     this.names.palette.clear();
     this.runs = [];
-    for (const r of kept) this.replay(r.code, r.label);
+    for (const r of kept) this.replay(r.code, r.label === undefined ? {} : { label: r.label });
     return {
       checkpoint,
       runsRemoved: removed.length,
@@ -432,16 +447,18 @@ export class Painting {
   }
 
   /**
-   * Re-run a committed script with no time limit and nothing rendered. Throws when it
-   * doesn't complete, which only a script that never committed can do.
+   * Re-run a script that committed before (from a journal, or a run being rebuilt) and
+   * commit it again: no time or stroke cap, nothing rendered. Throws `invalid_journal`
+   * when it doesn't complete, which a script that once committed never does.
    */
-  replay(code: string, label?: string): void {
+  replay(code: string, options: ReplayOptions = {}): void {
     const before = this.before();
     const x = this.execute(code, {
       render: false,
       timeMs: Number.POSITIVE_INFINITY,
+      strokes: Number.POSITIVE_INFINITY,
       cancelled: undefined,
-      onStroke: undefined,
+      onStroke: options.onStroke,
     });
     if (x.session.hostFailure !== undefined) {
       this.rollback(x.undo, before);
@@ -455,7 +472,7 @@ export class Painting {
         `Run ${this.checkpoint + 1} did not replay: ${status.status === 'script_error' ? status.error.message : status.status}.`,
       );
     }
-    this.commit(code, label, x, before);
+    this.commit(code, options.label, x, before);
   }
 
   /** Render a view; throws `invalid_region` for a region with no pixels on the canvas. */
@@ -510,8 +527,9 @@ export class Painting {
     code: string,
     o: {
       cancelled: (() => boolean) | undefined;
-      onStroke: ((stroke: StrokeReport) => void) | undefined;
+      onStroke: ((stroke: StrokeEvent) => void) | undefined;
       render: boolean;
+      strokes: number;
       timeMs: number;
     },
   ): Execution {
@@ -521,7 +539,7 @@ export class Painting {
       names: this.names,
       undo,
       reference: this.ref,
-      limits: this.limits,
+      limits: { ...this.limits, strokes: o.strokes },
       render: o.render,
       onStroke: o.onStroke,
     });
@@ -579,7 +597,7 @@ export class Painting {
       code,
       ...(label !== undefined && { label }),
       strokes: x.session.strokes.length,
-      coverage: x.session.strokes.reduce((s, r) => s + r.covered, 0),
+      brushwork: x.session.strokes.reduce((s, r) => s + brushwork(r.length, r.width), 0),
       before,
       undo: x.undo,
     });
@@ -604,6 +622,14 @@ export class Painting {
       h: Math.min(this.height, r.y1 + 8) - y0,
     };
   }
+}
+
+/**
+ * The live canvas behind a painting, for renderers inside this package that draw it
+ * incrementally (the timelapse). Not exported from the package entry point.
+ */
+export function canvasOf(p: Painting): Canvas {
+  return peekCanvas(p);
 }
 
 function statusOf(x: Execution): RunStatus {

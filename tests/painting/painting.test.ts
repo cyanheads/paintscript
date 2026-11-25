@@ -32,7 +32,7 @@ describe('Painting.run', () => {
     expect(r.stats.covered!.p50).toBeGreaterThan(100);
     expect(r.views).toHaveLength(1);
     expect(p.history).toEqual([
-      { code: SCENE, label: 'block-in', strokes: 7, coverage: expect.any(Number) },
+      { code: SCENE, label: 'block-in', strokes: 7, brushwork: expect.any(Number) },
     ]);
     expect(Object.keys(p.brushes)).toEqual(['wide']);
     expect(p.palette.sky!.hex).toMatch(/^#[0-9a-f]{6}$/);

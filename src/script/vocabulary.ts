@@ -41,7 +41,7 @@ export interface SessionEnv {
   canvas: Canvas;
   limits: VocabularyLimits;
   names: Names;
-  onStroke: ((stroke: StrokeReport) => void) | undefined;
+  onStroke: ((stroke: StrokeEvent) => void) | undefined;
   reference: Reference | undefined;
   /** Render `show()` views; off when replaying, where nothing looks. */
   render: boolean;
@@ -56,6 +56,12 @@ export interface StrokeReport {
   length: number;
   mixed: number;
   pickedUp: number;
+}
+
+/** A stroke that just landed, as a run's `onStroke` hook sees it. */
+export interface StrokeEvent extends StrokeReport {
+  /** Brush width, px. */
+  width: number;
 }
 
 const STROKE_KEYS = [
@@ -219,7 +225,7 @@ export class RunSession {
       mixed: result.mixed,
       pickedUp: result.pickedUp,
     };
-    this.env.onStroke?.(report);
+    this.env.onStroke?.({ ...report, width: brush.width });
     return report;
   }
 
