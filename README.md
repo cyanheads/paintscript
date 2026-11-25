@@ -15,6 +15,12 @@ A painting is one simulated canvas. You paint it in passages: each passage is a 
 
 Colors are 8-band reflectance spectra that mix by Kubelka–Munk, so blue and yellow make green and a glaze tints what is under it. Brushes are bundles of bristles swept along a spline; streaks, dry-brush breaks, ridges, and carried color come out of the sweep. Wet paint mixes with the next stroke, dry paint takes it cleanly, and the surface is lit by its own relief. The script API has no shapes, fills, or gradients, so every form in a painting is a stroke the script author placed. The API is written for language models to paint with, and works the same for a person writing JavaScript.
 
+<p align="center">
+  <img src="examples/low-tide/painting.png" alt="Low tide: a beach at sunset, posts leading out across wet sand to the sea, a beached boat, gulls in a gold and rose sky" width="49%">
+  <img src="examples/low-tide/timelapse.gif" alt="Timelapse of the same painting being made, stroke by stroke" width="49%">
+</p>
+<p align="center"><i>Low tide</i>: six passages, about 5,400 strokes. <a href="examples/">The scripts</a> and their journal replay it exactly.</p>
+
 ## Quick start
 
 Write a passage:
