@@ -20,14 +20,6 @@ const WATER = 525;
 const SPIT = 660; // the waterline under the elms
 const GLOW = { x: 1040, y: 300 };
 
-/** The elms (as in passage 1): foot, lean, and how high the crown climbs into the fog. */
-const ELMS = [
-  { x: 92, top: 120, lean: -14, spread: 120 },
-  { x: 205, top: 70, lean: 8, spread: 140 },
-  { x: 318, top: 150, lean: 18, spread: 115 },
-  { x: 430, top: 250, lean: 10, spread: 90 },
-];
-
 /** The long wood's skyline: a shoulder left of center, sinking toward the light. */
 function farTop(x) {
   const shoulder = 72 * Math.exp(-(((x - 470) / 330) ** 2));
@@ -44,15 +36,80 @@ function lightAt(x, y) {
   const g = Math.exp(-d * d);
   return g > 0.55 ? 2 : g > 0.2 ? 1 : 0;
 }
-/** The top of the spit's bank at x, as passage 4 paints it. */
+
+/**
+ * The elms as passage 4 paints them: the trees, the spit's top, each crown's lobes, and
+ * what step of the foliage a point of a crown takes. The reflection below mirrors these.
+ */
+const ELMS = [
+  { x: 66, top: 150, lean: -18, spread: 112, far: 0 },
+  { x: 172, top: 58, lean: 8, spread: 142, far: 0.3 },
+  { x: 318, top: 128, lean: 20, spread: 106, far: 1 },
+  { x: 482, top: 262, lean: 12, spread: 80, far: 1.8 },
+];
 const spitTop = (x) => SPIT - 34 * Math.max(0, 1 - x / 600) ** 0.7 - 3 * noise(x / 40, 6.1);
-/** The crown of elm e at height fraction u (0 at its top, 1 at the fork), as passage 4 paints it. */
-function crownAt(e, u) {
-  const bottom = SPIT - (SPIT - e.top) * 0.14;
-  const y = e.top + u * (bottom - e.top);
-  const half =
-    e.spread * Math.sin(Math.PI * Math.min(1, 0.12 + u * 0.75)) ** 0.6 * (1 - 0.45 * u ** 1.5);
-  return { x: e.x + e.lean * (1 - u), y, half };
+const LOBES = [
+  [-0.62, 0.14, 0.4, 0.12],
+  [-0.3, 0.09, 0.4, 0.11],
+  [0, 0.08, 0.38, 0.09],
+  [0.3, 0.09, 0.4, 0.11],
+  [0.62, 0.14, 0.4, 0.12],
+  [-0.9, 0.4, 0.28, 0.2],
+  [0.9, 0.4, 0.28, 0.2],
+  [0, 0.37, 0.8, 0.26],
+  [-0.6, 0.63, 0.5, 0.11],
+  [0.6, 0.63, 0.5, 0.11],
+  [0, 0.56, 0.45, 0.08],
+];
+const TREES = ELMS.map((e, k) => {
+  const foot = spitTop(e.x) + 4;
+  const h = foot - e.top;
+  const cx = e.x + e.lean;
+  const lobes = LOBES.map(([u, v, ru, rv], j) => ({
+    x: cx + (u + 0.12 * noise(k * 7.3 + j, 1.9)) * e.spread,
+    y: e.top + (v + 0.04 * noise(k * 5.1 + j, 4.4)) * h,
+    rx: ru * e.spread * (1 + 0.15 * noise(k * 3.7 + j, 7.7)),
+    ry: rv * h * (1 + 0.15 * noise(k * 2.9 + j, 2.3)),
+  }));
+  return { ...e, k, foot, h, cx, fork: { x: e.x + e.lean * 0.3, y: foot - 0.1 * h }, lobes };
+});
+function depthIn(t, x, y) {
+  let d = Number.NEGATIVE_INFINITY;
+  let side = 0;
+  for (const l of t.lobes) {
+    const dx = x - l.x;
+    const dy = y - l.y;
+    const q = Math.hypot(dx / l.rx, dy / l.ry);
+    const r = Math.hypot(dx, dy);
+    const dl = q < 1e-6 ? Math.min(l.rx, l.ry) : r * (1 / q - 1);
+    if (dl > d) {
+      d = dl;
+      side = Math.max(-1, Math.min(1, dy / l.ry));
+    }
+  }
+  return {
+    d: d + 8 * noise(x / 34 + t.k * 13, y / 34) + 3 * noise(x / 11, y / 11 + t.k * 5),
+    side,
+  };
+}
+function crownAt(x, y) {
+  let depth = Number.NEGATIVE_INFINITY;
+  let step = 9;
+  for (const t of TREES) {
+    const { d, side } = depthIn(t, x, y);
+    depth = Math.max(depth, d);
+    if (d <= 0) continue;
+    const v = (y - t.top) / t.h;
+    const value =
+      t.far +
+      Math.min(3, Math.max(0, (310 - y) / 85)) +
+      (d < 6 ? 1.2 : d < 14 ? 0.5 : 0) -
+      0.7 * side -
+      (v > 0.45 && d > 12 ? 0.6 : 0) +
+      0.5 * noise(x / 45, y / 45);
+    step = Math.min(step, value);
+  }
+  return { depth, step: Math.min(5, Math.max(0, Math.round(step))) };
 }
 
 brush('mass', { type: 'soft', width: 30, reservoir: 3 });
@@ -139,11 +196,11 @@ for (let y = WATER + 4; y < WATER + 130; y += 8) {
 
 /**
  * The spit's bank turned over: a band as deep as the bank is high, narrowing to the
- * point. Then the elms' reflection: each crown hangs below its mirrored trunk, darker
- * than the water and paler than the tree, laid in short overlapping level strokes as wide
- * as the crown is at the height it mirrors. It starts a step pale where it mirrors the
- * haze at the elms' foot, and the fog lying on the water takes it in three steps within
- * a short way, long before the crowns' mirrored tops.
+ * point. Then the elms' reflection, as deep below the waterline as each part stands above
+ * it: the trunks and their limbs hanging down, and below them the dark of the lower
+ * crowns, one mass where they overlap, darker than the water and paler than the trees.
+ * It is laid in level strokes of staggered length, so no edge lines up from row to row,
+ * and the fog lying on the water takes it step by step as it goes down.
  */
 for (let y = SPIT + 3; y < SPIT + 36; y += 5) {
   let x1 = 0;
@@ -160,66 +217,75 @@ for (let y = SPIT + 3; y < SPIT + 36; y += 5) {
     load: rand(0.6, 0.7),
   });
 }
-// the trunks, wavering a little, gone where the crowns begin
-for (const e of ELMS) {
-  const forkMirror = 2 * SPIT - crownAt(e, 1).y;
-  stroke({
-    path: [
-      [e.x, SPIT + 6, 0.7],
-      [e.x + rand(-1.5, 1.5), (SPIT + forkMirror) / 2, 0.55],
-      [e.x + e.lean * 0.3 + rand(-1.5, 1.5), forkMirror + 8, 0.2],
-    ],
-    brush: { type: 'soft', width: 10 },
-    color: 'trunkMirror',
-    load: 0.65,
-  });
+// the trunks and limbs upside down, wavering a little, the limbs lost before the crowns
+const mirror = ([x, y, p]) => [x + rand(-1.5, 1.5), 2 * SPIT - y, p];
+for (const t of TREES) {
+  const size = t.h / 570;
+  const { fork } = t;
+  const bole = [
+    [t.x, t.foot + 2, 0.95],
+    [t.x + t.lean * 0.12, t.foot - 0.05 * t.h, 0.9],
+    [fork.x, fork.y, 0.8],
+  ];
+  // a broad pale stroke, then the trunk's own dark down the middle of it
+  for (const [w, color, load] of [
+    [30, 'elmMirror', 0.6],
+    [15, 'trunkMirror', 0.65],
+  ])
+    stroke({ path: bole.map(mirror), brush: { type: 'soft', width: w * size }, color, load });
+  const rise = fork.y - (t.top + 0.62 * t.h);
+  for (const u of [-0.45, 0.04, 0.48]) {
+    const dx = t.cx - fork.x + (u + 0.12 * noise(t.k * 4.1, u * 3)) * t.spread;
+    const lift = rise * (1 + 0.15 * noise(t.k * 2.3, u * 5));
+    stroke({
+      path: [
+        [fork.x + u * 8 * size, fork.y + 4, 0.8],
+        [fork.x + dx * 0.18, fork.y - lift * 0.4, 0.65],
+        [fork.x + dx * 0.45, fork.y - lift * 0.7, 0.4],
+      ].map(mirror),
+      brush: { type: 'soft', width: 14 * size },
+      color: 'elmMirrorPale',
+      load: 0.5,
+    });
+  }
 }
-// the crowns, a row every few px across whichever crowns reach that far down, so where
-// they overlap the mirror is one mass
-const ELM_STEPS = ['elmMirror', 'elmMirrorPale', 'elmMirrorLost'];
-const forkMirrors = ELMS.map((e) => 2 * SPIT - crownAt(e, 1).y);
-const reaches = ELMS.map(() => rand(115, 145));
-for (let y = Math.min(...forkMirrors) - 4; y < 900; y += rand(7, 10)) {
+// the crowns, a row every few px, each row crossing whatever crowns hang that far down
+const ELM_STEPS = ['elmMirrorDeep', 'elmMirror', 'elmMirrorPale', 'elmMirrorLost'];
+const crownFoot = Math.max(...TREES.map((t) => Math.max(...t.lobes.map((l) => l.y + l.ry))));
+for (let y = 2 * SPIT - crownFoot - 6; y < canvas.height + 10; y += rand(6, 9)) {
+  const ty = 2 * SPIT - y;
   const spans = [];
-  for (const [k, e] of ELMS.entries()) {
-    const d = y - forkMirrors[k];
-    if (d < -4 || d > reaches[k]) continue;
-    const u = (2 * SPIT - y - e.top) / (2 * SPIT - forkMirrors[k] - e.top);
-    const c = crownAt(e, Math.min(1, Math.max(0, u)));
-    const half = c.half * rand(0.75, 0.95);
-    spans.push({ x0: c.x - half, x1: c.x + half, d });
+  for (let x = -30; x < 600; x += 5) {
+    if (crownAt(x, ty).depth <= 0) continue;
+    const last = spans.at(-1);
+    if (last && x - last.x1 <= 5) last.x1 = x;
+    else spans.push({ x0: x, x1: x });
   }
-  spans.sort((a, b) => a.x0 - b.x0);
-  const merged = [];
+  const fade = 0.4 + Math.max(0, (y - SPIT - 150) / 70);
   for (const s of spans) {
-    const last = merged.at(-1);
-    if (last && s.x0 < last.x1) {
-      last.x1 = Math.max(last.x1, s.x1);
-      last.d = Math.min(last.d, s.d);
-    } else merged.push({ ...s });
-  }
-  for (const s of merged) {
-    // overlapping level strokes of varied length, so no edge lines up with the next row's
-    for (let x = s.x0 - rand(0, 20); x < s.x1 - 10; x += rand(35, 70)) {
-      const x1 = Math.min(x + rand(50, 130), s.x1 + rand(-10, 15));
-      if (x1 < x + 20) continue;
-      const d = s.d + rand(-16, 16);
+    if (s.x1 - s.x0 < 12) continue;
+    for (let x = s.x0 - rand(4, 18); x < s.x1 - 8; x += rand(35, 75)) {
+      const x1 = Math.min(x + rand(50, 130), s.x1 + rand(-6, 16));
+      if (x1 < x + 18) continue;
+      const mid = (x + x1) / 2;
+      const c = crownAt(mid, ty);
+      const step = [0, 0, 1, 1, 2, 3][c.step] + fade + 0.5 * noise(mid / 50, y / 30);
       stroke({
         path: [
           [x, y + rand(-1, 1), 0.15],
-          [(x + x1) / 2, y + rand(-1.5, 1.5), 0.7],
+          [mid, y + rand(-1.5, 1.5), 0.7],
           [x1, y + rand(-1, 1), 0.15],
         ],
-        brush: { type: 'soft', width: rand(26, 36), reservoir: 2 },
-        color: ELM_STEPS[d < 18 ? 1 : d < 70 ? 0 : d < 105 ? 1 : 2],
-        load: rand(0.5, 0.65),
+        brush: { type: 'soft', width: rand(22, 30), reservoir: 2 },
+        color: ELM_STEPS[Math.min(3, Math.max(0, Math.round(step)))],
+        load: rand(0.55, 0.65),
       });
     }
   }
 }
 // the water's skin breaks the reflections level: a few faint lines of the pond across them
-for (let y = SPIT + 24; y < 860; y += rand(26, 44)) {
-  for (let x = -40; x < 560; x += rand(160, 300)) {
+for (let y = SPIT + 24; y < canvas.height; y += rand(26, 44)) {
+  for (let x = -40; x < 580; x += rand(160, 300)) {
     const len = rand(70, 170);
     stroke({
       path: [

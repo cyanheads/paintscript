@@ -64,22 +64,25 @@ palette('mist', mix(['sky3', 2], ['fog', 1]));
 palette('mistHalf', mix(['sky3', 2], ['fog', 1], ['sky1', 1]));
 palette('mistLit', mix(['sky3', 2], ['fog', 1], ['sky1', 2]));
 
-// The elms: green-grey foliage, a deeper core, bark; then the steps they take into the fog.
+// The elms: green-grey foliage, a deeper core, bark; then the steps they take into the fog,
+// from the dark of the lower crown to the tops, where the fog has nearly taken them.
 palette('elm', mix(['terre', 2], ['umber', 1.3], ['white', 1.6], ['ultra', 0.25], ['rose', 0.1]));
 palette('elmDeep', mix(['terre', 1.5], ['umber', 1.6], ['white', 0.8], ['ultra', 0.35]));
-palette('bark', mix(['umber', 2], ['ultra', 0.4], ['white', 0.9], ['rose', 0.15]));
-palette('crownCore', mix(['elmDeep', 2], ['fog', 0.15]));
-palette('crown', mix(['elm', 2], ['fog', 0.25]));
-palette('crownHaze', mix(['elm', 2], ['fog', 0.9]));
-palette('crownFog', mix(['elm', 2], ['fog', 2]));
+palette('bark', mix(['umber', 2], ['ultra', 0.5], ['terre', 0.6], ['white', 0.7]));
+palette('crownCore', mix(['elmDeep', 2], ['fog', 0.12]));
+palette('crown', mix(['elmDeep', 2], ['fog', 0.5]));
+palette('crownMid', mix(['elm', 2], ['fog', 0.45]));
+palette('crownHaze', mix(['elm', 2], ['fog', 1.2]));
+palette('crownFog', mix(['elm', 2], ['fog', 2.6]));
 palette('crownLost', mix(['elm', 1], ['fog', 3], ['sky4', 2]));
-palette('trunk', mix(['bark', 2], ['fog', 1]));
-palette('limb', mix(['bark', 2], ['fog', 1.3]));
-// Their reflection: the crown dulled by the pond and taken by the fog in three steps.
-palette('elmMirror', mix(['crown', 2], ['pond', 0.8], ['sky4', 1.4]));
+palette('trunk', mix(['bark', 2], ['fog', 0.2]));
+palette('limb', mix(['bark', 2], ['fog', 0.45]));
+// Their reflection: the crown dulled by the pond and taken by the fog in four steps.
+palette('elmMirrorDeep', mix(['crownCore', 2], ['pond', 0.8], ['sky4', 1]));
+palette('elmMirror', mix(['crown', 2], ['pond', 0.8], ['sky4', 1.6]));
 palette('elmMirrorPale', mix(['crown', 2], ['pond', 0.8], ['sky4', 3]));
 palette('elmMirrorLost', mix(['crown', 1], ['pond', 0.6], ['sky4', 3.6]));
-palette('trunkMirror', mix(['bark', 2], ['pond', 0.8], ['sky4', 2.5]));
+palette('trunkMirror', mix(['bark', 2], ['pond', 0.8], ['sky4', 1.6]));
 // The level lines of the water's skin that break a reflection.
 palette('skin', mix(['sky3', 3], ['pond', 1]));
 
@@ -112,12 +115,12 @@ const W = canvas.width;
 const H = canvas.height;
 const SPIT = 660; // the waterline under the elms
 
-/** The elms on the spit: foot, lean, and how high the crown climbs into the fog. */
+/** The elms on the spit, as passage 4 paints them: foot, crown top, lean, and half-spread. */
 const ELMS = [
-  { x: 92, top: 120, lean: -14, spread: 120 },
-  { x: 205, top: 70, lean: 8, spread: 140 },
-  { x: 318, top: 150, lean: 18, spread: 115 },
-  { x: 430, top: 250, lean: 10, spread: 90 },
+  { x: 66, top: 150, lean: -18, spread: 112 },
+  { x: 172, top: 58, lean: 8, spread: 142 },
+  { x: 318, top: 128, lean: 20, spread: 106 },
+  { x: 482, top: 262, lean: 12, spread: 80 },
 ];
 
 brush('wash', { type: 'soft', width: 220, reservoir: 6 });
@@ -148,16 +151,17 @@ dry();
 palette('rubIn', mix(['umber', 2], ['terre', 1], ['white', 2]));
 const rubIn = { color: 'rubIn', thinner: 0.7, load: 0.6, paint: 'semi_opaque' };
 for (const e of ELMS) {
-  // the crown as a few loose sweeps, the trunk as one line
-  const fork = SPIT - (SPIT - e.top) * 0.14;
-  for (let y = e.top + 40; y < fork - 20; y += 55) {
-    const u = (y - e.top) / (fork - e.top);
-    const half = e.spread * Math.sin(Math.PI * Math.min(1, 0.15 + u * 0.8)) ** 0.6;
-    const cx = e.x + e.lean * (1 - u);
+  // the crown as a few loose sweeps, broadest across the shoulders and narrower over the
+  // arch underneath; the trunk and its fork as a short line
+  const foot = SPIT - 25;
+  const h = foot - e.top;
+  for (let v = 0.12; v < 0.72; v += 0.1) {
+    const half = e.spread * (v < 0.4 ? 0.75 + 0.6 * v : 0.99 - 0.9 * (v - 0.4));
+    const y = e.top + v * h;
     stroke({
       path: [
-        [cx - half, y + rand(-8, 8)],
-        [cx + half, y + rand(-8, 8)],
+        [e.x + e.lean - half, y + rand(-8, 8)],
+        [e.x + e.lean + half, y + rand(-8, 8)],
       ],
       brush: 'rub',
       ...rubIn,
@@ -165,24 +169,24 @@ for (const e of ELMS) {
   }
   stroke({
     path: [
-      [e.x, SPIT],
-      [e.x + e.lean * 0.3, fork],
+      [e.x, foot],
+      [e.x + e.lean * 0.3, foot - 0.35 * h],
     ],
     brush: { type: 'soft', width: 18 },
     ...rubIn,
   });
 }
-// the spit, its reflection hanging a short way below it, and the mud bar from the right
-for (let y = SPIT - 30; y < SPIT + 170; y += 40)
+// the spit, the elms' reflection hanging below it to the bottom edge, and the mud bar
+for (let y = SPIT - 30; y < H; y += 40)
   stroke({
     path: [
       [-40, y],
-      [260, y + rand(-6, 6)],
-      [560 - (y - SPIT) * 0.8, y],
+      [280, y + rand(-6, 6)],
+      [570 - Math.max(0, 70 - (y - SPIT)), y],
     ],
     brush: 'rub',
     ...rubIn,
-    load: 0.45,
+    load: y < SPIT + 120 ? 0.45 : 0.4,
   });
 stroke({
   path: [
