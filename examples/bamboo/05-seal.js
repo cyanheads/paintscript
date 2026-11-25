@@ -4,7 +4,7 @@
  * A square seal in cinnabar paste, pressed low on the left where the paper is empty.
  * It is cut in the red-line style: a border and two characters standing in red on the
  * paper, read from the right column to the left. The right column is 雨 (rain) and
- * the left 竹 (bamboo): rain bamboo, the name of the subject. The strokes are square-
+ * the left 竹 (bamboo): bamboo in the rain, the subject. The strokes are square-
  * cornered as a stone cutter leaves them, and lightly loaded paste breaks on the paper
  * here and there, as a real impression does.
  */

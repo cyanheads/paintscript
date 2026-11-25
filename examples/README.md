@@ -22,9 +22,9 @@ A Manhattan avenue in the rain at dusk, seen from five metres up and looking alo
 bun src/cli/bin.ts run examples/city-rain/0*.js --out examples/city-rain/painting.png --journal examples/city-rain/journal.jsonl --timelapse examples/city-rain/timelapse.gif --seed 1112 --width 1200 --height 1600 --ground '#f3efe6' --texture smooth --surface matte
 ```
 
-## Rain bamboo
+## Bamboo
 
-![Rain bamboo: a grove of bamboo in ink after rain, one dark culm in front, paler groves fading into mist, a red seal](bamboo/painting.png)
+![Bamboo: a grove of bamboo in ink after rain, one dark culm in front, paler groves fading into mist, a red seal](bamboo/painting.png)
 
 A grove of bamboo after rain, in ink on paper in the sumi-e tradition: one dark culm in front with its leaves hanging heavy and wet, a middle grove with one culm bowed over, and a far grove fading into mist, signed with a red seal reading 雨竹. It is painted in five passages from the five inks of the tradition (jiao, nong, zhong, dan, qing), mixed once from two soots and water. Each segment of a culm is one flat stroke lifted at the node, and each leaf one round stroke pressed down and lifted to a point. The paint is all transparent: value comes from water, not white, overlapping wet leaves darken where they cross, and the smooth paper takes the dry brush as flying white.
 

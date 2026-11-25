@@ -23,11 +23,11 @@ The paint behaves like real paint. Colors mix the way pigments do, so blue and y
 
 <p align="center">
   <a href="examples/#city-rain"><img src="examples/city-rain/painting.png" alt="City rain: a Manhattan avenue in the rain at dusk, cabs and umbrellas on a road that mirrors the lights" height="220"></a>
-  <a href="examples/#rain-bamboo"><img src="examples/bamboo/painting.png" alt="Rain bamboo: bamboo in ink after rain, one dark culm in front of paler groves fading into mist" height="220"></a>
+  <a href="examples/#bamboo"><img src="examples/bamboo/painting.png" alt="Bamboo: a grove in ink after rain, one dark culm in front of paler groves fading into mist" height="220"></a>
   <a href="examples/#poppies"><img src="examples/still-life/painting.png" alt="Poppies: red, orange, and coral poppies and white anemones in a cobalt jug, painted with a palette knife" height="220"></a>
   <a href="examples/#mist"><img src="examples/mist/painting.png" alt="Mist: a millpond at sunrise in fog, elms on a spit, a heron at the point of a mud bar" height="220"></a>
 </p>
-<p align="center"><i>City rain</i> in watercolor, <i>Rain bamboo</i> in ink, <i>Poppies</i> with the palette knife, and <i>Mist</i> in soft, close values. Each replays from its scripts the same way.</p>
+<p align="center"><i>City rain</i> in watercolor, <i>Bamboo</i> in ink, <i>Poppies</i> with the palette knife, and <i>Mist</i> in soft, close values. Each replays from its scripts the same way.</p>
 
 ## Quick start
 
