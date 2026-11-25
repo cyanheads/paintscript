@@ -19,8 +19,12 @@ export const PAINT_KINDS: readonly PaintKind[] = [
   'medium',
 ];
 
-/** Scattering density per unit volume of opaque and semi-opaque paint. */
-const DENSITY = { opaque: 7, semi_opaque: 4 } as const;
+/**
+ * Pigment density per unit volume. Opaque paint is dense enough that one full-load pass
+ * hides the ground; semi-opaque lets some through; transparent paint is mostly filter.
+ * Mixing ratios don't depend on these: K and S scale together within a kind.
+ */
+export const DENSITY = { opaque: 120, semi_opaque: 24, transparent: 4 } as const;
 
 /** K/S of an infinitely thick layer with reflectance R. */
 export function ksOf(R: number): number {
@@ -61,8 +65,7 @@ export function paintOf(
       S[o + b] = 0.002;
       continue;
     }
-    const c = DENSITY[kind === 'opaque' ? 'opaque' : 'semi_opaque'];
-    const s = c / (1 + meanKs);
+    const s = DENSITY[kind] / (1 + meanKs);
     const k = ks * s;
     if (kind === 'transparent') {
       K[o + b] = 0.5 * (k + kGlaze);

@@ -13,10 +13,20 @@ import { rng } from '../random/rng.js';
 export const HEIGHT_PER_VOLUME = 0.55;
 
 /** Canvas weave. `smooth` is a gessoed panel with no weave. */
-export type Texture = 'smooth' | 'fine_weave';
+export type Texture = 'smooth' | 'fine_weave' | 'coarse_weave';
 
 /** Every texture, for validation. */
-export const TEXTURES: readonly Texture[] = ['smooth', 'fine_weave'];
+export const TEXTURES: readonly Texture[] = ['smooth', 'fine_weave', 'coarse_weave'];
+
+/** Weave period (px) and height relative to `fine_weave` per texture. */
+const WEAVE: Record<Texture, { amp: number; period: number }> = {
+  smooth: { amp: 0, period: 6 },
+  fine_weave: { amp: 1, period: 6 },
+  coarse_weave: { amp: 1.6, period: 10 },
+};
+
+/** Peak weave height of `fine_weave`; the weave at a pixel divided by this × amp is its height 0–1. */
+export const WEAVE_HEIGHT = 0.1;
 
 /** An axis-aligned pixel rectangle; x1 and y1 exclusive. */
 export interface PixelRect {
@@ -46,6 +56,13 @@ export class Canvas {
   readonly S: Float32Array;
   /** Wet film volume per pixel; 0 is dry. */
   readonly V: Float32Array;
+  /** Weave height relative to `fine_weave` (0 on a smooth panel). */
+  readonly weaveAmp: number;
+  /**
+   * Per-pixel scratch the stroke kernel uses to measure one stroke: values at or above
+   * 4 × the stroke's number mark pixels it visited (+1), painted (+2), or both (+3).
+   */
+  readonly mark: Int32Array;
   /** Strokes laid on this canvas, the counter that seeds each stroke's randomness. */
   strokeTotal = 0;
 
@@ -62,9 +79,10 @@ export class Canvas {
     this.K = new Float32Array(n * NB);
     this.S = new Float32Array(n * NB);
     this.V = new Float32Array(n);
-    const weaveAmp = texture === 'smooth' ? 0 : 1;
+    this.mark = new Int32Array(n);
+    const { amp: weaveAmp, period: T } = WEAVE[texture];
+    this.weaveAmp = weaveAmp;
     const r = rng(seed);
-    const T = 6;
     for (let y = 0; y < height; y++)
       for (let x = 0; x < width; x++) {
         const i = y * width + x;
@@ -75,7 +93,8 @@ export class Canvas {
         const warp = Math.sin(Math.PI * u);
         const weft = Math.sin(Math.PI * v);
         const h =
-          ((par ? warp * 0.75 + weft * 0.25 : weft * 0.75 + warp * 0.25) * 0.1 + r() * 0.02) *
+          ((par ? warp * 0.75 + weft * 0.25 : weft * 0.75 + warp * 0.25) * WEAVE_HEIGHT +
+            r() * 0.02) *
           weaveAmp;
         this.weave[i] = h;
         this.baseH[i] = h;
@@ -85,6 +104,14 @@ export class Canvas {
   /** Seed for the next stroke's randomness; advances the stroke counter. */
   nextStrokeSeed(): number {
     return (this.seed * 7919 + ++this.strokeTotal * 104729) >>> 0;
+  }
+
+  /** Strokes measured on this canvas, never rewound, so `mark` values stay unique across reverts. */
+  private markEpoch = 0;
+
+  /** Base `mark` value for the next stroke's measurements. */
+  nextMarkBase(): number {
+    return 4 * ++this.markEpoch;
   }
 
   /** Pixel index of a canvas coordinate, clamped to the canvas. */
