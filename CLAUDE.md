@@ -21,13 +21,27 @@ bun run check   # the gate: typecheck, Biome with zero warnings, tests, changelo
 | `src/paint/` | Kubelka–Munk K and S per paint kind, film layering, mixing by parts |
 | `src/brush/` | Brush and stroke types, path resampling, the strand kernel (`lay-stroke.ts`) |
 | `src/canvas/` | Canvas state: weave, dry base, wet film; `dry()` |
-| `src/render/` | Lit 8-bit render, full quality and fast preview |
+| `src/render/` | Lit 8-bit render and the view modes (`view.ts`) |
 | `src/image/` | PNG encode/decode and the GIF encoder, no dependencies |
+| `src/random/` | `rng.ts`: the seeded generator and seed hashing |
+| `src/script/` | QuickJS sandbox (`sandbox.ts`), guest prelude (`prelude.ts`), host vocabulary (`vocabulary.ts`), its declarations (`vocabulary-dts.ts`) |
+| `src/painting/` | `Painting` (runs, revert, replay, views), tile undo, run review |
+| `src/reference/` | Reference placement, `ref.at`, `ref.edge`, `diff` |
+| `src/journal/` | Journal JSON Lines: zod schemas, format, parse, open, replay |
+| `src/timelapse/` | Journal → GIF, frames spaced by brushwork |
+| `src/cli/` | `main.ts` (the command, testable via `main(argv, io)`), `bin.ts` (the executable) |
+| `examples/` | Example paintings: scripts plus their PNG, journal, and GIF. Docs only; not in the package |
+
+Design decisions and their reasons: `docs/design.md`. Update it when a decision changes.
 
 ## The rules that matter
 
 - **No prebuilt shapes, fills, gradients, or scatter helpers** in the engine or the script vocabulary. The vocabulary is physics, senses, and raw randomness; the script author draws every form.
-- **Determinism.** Every random choice comes from `src/random/rng.ts` seeded by the canvas seed and a counter; never `Math.random` or the clock in engine code.
+- **Determinism.** Every random choice comes from `src/random/rng.ts` seeded by the canvas seed and a counter; never `Math.random` or the clock in engine code. Time budgets decide only whether a run finishes, never what lands on the canvas.
+- **A vocabulary change touches three files together:** `src/script/prelude.ts` (the guest globals), `src/script/vocabulary.ts` (host validation and behavior), `src/script/vocabulary-dts.ts` (the declarations models read). `tests/script/vocabulary-dts.test.ts` fails when the declarations and the prelude's `define()` globals disagree. Validation messages name the function and field and say what to change.
+- **A run is atomic.** Anything a run writes to the canvas goes through `TileUndo.save` first (via `layStroke`'s `beforeWrite`), and any session state a run can change (brushes, palette, stroke counter) is restored on rollback and revert.
+- **Journal format changes bump the header `version`** in `src/journal/journal.ts`. Replay must stay byte-identical for journals the engine still accepts.
+- **Host functions run outside the interrupt.** Any vocabulary call whose cost scales with its arguments needs a bound checked before the work starts (as `stroke` bounds path points and length).
 - **Generated files:** `CHANGELOG.md` (from `changelog/`). Regenerate with `bun run changelog:build`; never hand-edit.
 
 ## Commit stance
