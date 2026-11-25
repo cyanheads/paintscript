@@ -58,11 +58,7 @@
   "bin": {
     "paintscript": "./dist/cli/main.js"
   },
-  "files": [
-    "dist/",
-    "changelog/",
-    "CHANGELOG.md"
-  ],
+  "files": ["dist/", "changelog/", "CHANGELOG.md"],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "clean": "rm -rf dist .tsbuildinfo",
@@ -73,7 +69,7 @@
     "test": "vitest run",
     "changelog:build": "bun run scripts/build-changelog.ts",
     "changelog:check": "bun run scripts/build-changelog.ts --check",
-    "check": "bun run typecheck && bun run lint && vitest run --passWithNoTests && bun run changelog:check"
+    "check": "bun run typecheck && bun run lint && vitest run && bun run changelog:check"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.8",
