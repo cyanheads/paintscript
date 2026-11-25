@@ -44,4 +44,13 @@ describe('renderTimelapse', () => {
     for (const o of [{ width: 8 }, { frames: 1 }, { frames: 2.5 }, { fps: 0 }, { hold: 61 }])
       await expect(renderTimelapse(j, o)).rejects.toMatchObject({ code: 'invalid_options' });
   });
+
+  it('refuses more frames than it can hold at the size asked for', async () => {
+    const j = await journal();
+    const large = { ...j, header: { ...j.header, width: 800, height: 600 } };
+    await expect(renderTimelapse(large, { width: 800, frames: 1000 })).rejects.toMatchObject({
+      code: 'invalid_options',
+      message: expect.stringMatching(/1000 frames at 800×600 px .* at most 745 frames/),
+    });
+  });
 });

@@ -14,11 +14,20 @@ import { canvasOf } from '../painting/painting.js';
 import { brushwork } from '../painting/run-review.js';
 import { fitRegion, renderFit } from '../render/render.js';
 
+/**
+ * Most pixels a timelapse holds across all its frames (1 GiB as RGB): every frame is
+ * kept until the palette is cut from them, so `frames` × the GIF's size is its memory.
+ */
+const MAX_FRAME_PIXELS = 2 ** 30 / 3;
+
 /** How to film the painting. */
 export interface TimelapseOptions extends JournalReplayOptions {
   /** Playback rate while painting, 1–50. Default 20. */
   fps?: number;
-  /** Frames from the bare ground to the finished painting, 2–1000. Default 150. */
+  /**
+   * Frames from the bare ground to the finished painting, 2–1000. Default 150. Frames
+   * times the GIF's width and height may come to at most about 358 million px.
+   */
   frames?: number;
   /** Seconds the finished painting holds before the loop restarts, 0–60. Default 3. */
   hold?: number;
@@ -51,6 +60,11 @@ export async function renderTimelapse(
   const canvas = canvasOf(painting);
   const total = journal.runs.reduce((s, r) => s + r.brushwork, 0);
   const first = renderFit(canvas, width, painting.surface);
+  if (nFrames * first.width * first.height > MAX_FRAME_PIXELS)
+    throw new PaintscriptError(
+      'invalid_options',
+      `timelapse of ${nFrames} frames at ${first.width}×${first.height} px is too large to hold: use at most ${Math.floor(MAX_FRAME_PIXELS / (first.width * first.height))} frames at this size, or a lower width`,
+    );
   const frames = [first.rgb];
   // canvas area changed since the last frame, grown 1 px for the relief gradient's neighbor
   let x0 = Number.POSITIVE_INFINITY;
