@@ -124,10 +124,10 @@ await writeFile('painting.gif', film.bytes);
 
 | Export | What it does |
 |:---|:---|
-| `Painting.create(options)` | A blank canvas: size, ground color, texture (`smooth`, `fine_weave`, `coarse_weave`), seed, px per mm, an optional reference image, limits |
+| `Painting.create(options)` | A blank canvas: size, ground color, texture (`smooth`, `fine_weave`, `coarse_weave`), the surface it is seen under (`matte`, `satin`, `varnish`), seed, px per mm, an optional reference image, limits |
 | `painting.run(code, options)` | Run one passage; returns its status, stats, review, logs, and views |
 | `painting.revert(checkpoint)` | Undo committed runs back to a checkpoint |
-| `painting.view(options)` · `painting.image(surface)` | Render a region in any view mode, or the whole lit painting |
+| `painting.view(options)` · `painting.image(surface)` | Render a region in any view mode, or the whole lit painting; both default to the painting's surface |
 | `journalOf` · `formatJournal` · `parseJournal` | The painting's record as JSON Lines |
 | `openJournal` · `replayJournal` | A fresh painting from a journal's settings, or with all its runs replayed |
 | `renderTimelapse(journal, options)` | Film a journal as a looping GIF |
@@ -163,7 +163,7 @@ The checkpoint is the number of committed runs. Pass `expectCheckpoint` and a ru
 | Command | What it does |
 |:---|:---|
 | `paintscript run <script.js>... --out <png>` | Run each file as one passage, in order, on one canvas. `--journal`, `--timelapse`, `--views <dir>` (save `show()` views as PNG), `--width`, `--height`, `--ground`, `--texture`, `--seed`, `--reference <png>`, `--fit`, `--surface` |
-| `paintscript replay <journal.jsonl> --out <png>` | Replay a journal on a fresh canvas. `--timelapse`, `--surface`, and `--reference` for a journal painted against one |
+| `paintscript replay <journal.jsonl> --out <png>` | Replay a journal on a fresh canvas with the size, ground, texture, surface, and seed it records. `--timelapse`; `--reference` for a journal painted against one |
 | `paintscript vocabulary` | Print the script API as TypeScript declarations |
 
 Exit codes: `0` done, `1` a passage didn't complete (nothing from it was kept), `2` bad arguments or input.

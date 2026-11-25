@@ -166,9 +166,9 @@ declare function diff(region?: Region, options?: { /** Cell side in px, 4–4096
  */
 declare function show(region?: Region, options?: {
   mode?: 'color' | 'squint' | 'value' | 'relief' | 'wet';
-  /** Longest side of the image, 16–4096 px. Default 1024. */
+  /** Cap on the image's longest side, 16–4096 px; a view shrinks to fit but never enlarges past canvas size. Default 1024. */
   maxSide?: number;
-  /** Default 'satin'. */
+  /** Default: the painting's surface. */
   surface?: 'matte' | 'satin' | 'varnish';
   /** Grid lines every this many canvas px; every fifth is stronger. */
   grid?: number;

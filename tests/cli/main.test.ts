@@ -59,6 +59,8 @@ describe('paintscript', () => {
       '9',
       '--texture',
       'smooth',
+      '--surface',
+      'matte',
     );
     expect(run.err).toBe('');
     expect(run.code).toBe(0);

@@ -20,7 +20,7 @@ import {
   Reference,
   type ReferenceFit,
 } from '../reference/reference.js';
-import { type RgbImage, render, type Surface } from '../render/render.js';
+import { type RgbImage, render, SURFACES, type Surface } from '../render/render.js';
 import {
   clipRegion,
   type Region,
@@ -88,6 +88,8 @@ export interface PaintingOptions {
   reference?: ReferenceInput;
   /** 32-bit seed for the weave and every random choice. Default random. */
   seed?: number;
+  /** The finish the painting is seen under: its image, views, and timelapse. Default `satin`. */
+  surface?: Surface;
   /** Default `fine_weave`. */
   texture?: Texture;
   /** Canvas px. Default 1200, or fitted to the reference's aspect. */
@@ -229,6 +231,7 @@ export class Painting {
   readonly height: number;
   readonly seed: number;
   readonly texture: Texture;
+  readonly surface: Surface;
   readonly pxPerMm: number;
   readonly limits: Readonly<PaintingLimits>;
   readonly reference: ReferenceInfo | null;
@@ -251,6 +254,7 @@ export class Painting {
     qjs: QuickJSWASMModule;
     ref: { info: ReferenceInfo; sampler: Reference } | undefined;
     seed: number;
+    surface: Surface;
     texture: Texture;
     width: number;
   }) {
@@ -258,6 +262,7 @@ export class Painting {
     this.height = init.height;
     this.seed = init.seed;
     this.texture = init.texture;
+    this.surface = init.surface;
     this.pxPerMm = init.pxPerMm;
     this.limits = Object.freeze(init.limits);
     this.groundR = init.ground;
@@ -272,6 +277,9 @@ export class Painting {
     const texture = options.texture ?? 'fine_weave';
     if (!TEXTURES.includes(texture))
       invalid(`texture must be one of ${TEXTURES.join(', ')} (got ${String(texture)})`);
+    const surface = options.surface ?? 'satin';
+    if (!SURFACES.includes(surface))
+      invalid(`surface must be one of ${SURFACES.join(', ')} (got ${String(surface)})`);
     const seed = options.seed ?? crypto.getRandomValues(new Uint32Array(1))[0]!;
     if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff)
       invalid(`seed must be an integer from 0 to 4294967295 (got ${seed})`);
@@ -308,6 +316,7 @@ export class Painting {
       height,
       seed,
       texture,
+      surface,
       pxPerMm,
       ground,
       limits,
@@ -375,7 +384,9 @@ export class Painting {
       options.defaultView !== false &&
       session.touched
     )
-      session.views.push(renderView(this.canvas, { region: this.padded(session.touched) }));
+      session.views.push(
+        renderView(this.canvas, { region: this.padded(session.touched), surface: this.surface }),
+      );
     const review = reviewStrokes(session.strokes);
     const report: RunReport = {
       checkpoint: previous,
@@ -469,14 +480,14 @@ export class Painting {
     this.commit(code, options.label, x);
   }
 
-  /** Render a view; throws `invalid_region` for a region with no pixels on the canvas. */
+  /** Render a view, by default under the painting's surface; throws `invalid_region` for a region with no pixels on the canvas. */
   view(options: ViewOptions = {}): View {
     if (options.region) this.clip(options.region);
-    return renderView(this.canvas, options);
+    return renderView(this.canvas, { ...options, surface: options.surface ?? this.surface });
   }
 
-  /** The painting at full resolution. */
-  image(surface: Surface = 'satin'): RgbImage {
+  /** The painting at full resolution, by default under its own surface. */
+  image(surface: Surface = this.surface): RgbImage {
     return render(this.canvas, surface);
   }
 
@@ -538,6 +549,7 @@ export class Painting {
       reference: this.ref,
       limits: { ...this.limits, strokes: o.strokes },
       render: o.render,
+      surface: this.surface,
       onStroke: o.onStroke,
     });
     // the clock only decides whether a run may finish; it never reaches the painting

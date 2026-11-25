@@ -22,6 +22,7 @@ async function painted(reference?: RgbImage) {
     height: 100,
     seed: 21,
     texture: 'coarse_weave',
+    surface: 'varnish',
     ground: { r: 0.42, g: 0.4, b: 0.37 },
     ...(reference && { reference: { image: reference } }),
   });
@@ -46,6 +47,7 @@ describe('journal', () => {
       height: 100,
       seed: 21,
       texture: 'coarse_weave',
+      surface: 'varnish',
       pxPerMm: 4,
     });
     expect(journal.runs.map((r) => [r.run, r.label, r.strokes])).toEqual([
@@ -57,10 +59,12 @@ describe('journal', () => {
     expect(parseJournal(text)).toEqual(journal);
   });
 
-  it('replays to the same painting, and leaves out reverted runs', async () => {
+  it('replays to the same painting under the same surface, and leaves out reverted runs', async () => {
     const p = await painted();
     const replayed = await replayJournal(parseJournal(formatJournal(journalOf(p))));
+    expect(replayed.surface).toBe('varnish');
     expect(look(replayed)).toEqual(look(p));
+    expect(look(replayed)).not.toEqual(Buffer.from(p.image('satin').rgb));
     expect(replayed.palette).toEqual(p.palette);
     p.run("stroke({ path: [[0, 0], [160, 100]], brush: 'b', color: '#101010' })");
     p.revert(2);
@@ -69,12 +73,13 @@ describe('journal', () => {
 
   it('names the line and the field of a journal it cannot read', () => {
     const good =
-      '{"type":"paintscript","version":1,"engine":"0.1.0","width":10,"height":10,"ground":{"hex":"#000000","bands":[0,0,0,0,0,0,0,0]},"texture":"smooth","seed":1,"pxPerMm":4}';
+      '{"type":"paintscript","version":1,"engine":"0.1.0","width":10,"height":10,"ground":{"hex":"#000000","bands":[0,0,0,0,0,0,0,0]},"texture":"smooth","surface":"satin","seed":1,"pxPerMm":4}';
     const run = (n: number) => `{"run":${n},"code":"","strokes":0,"brushwork":0}`;
     const cases: [string, RegExp][] = [
       ['', /line 1: the journal is empty/],
       ['not json', /line 1: not valid JSON/],
       [good.replace('"seed":1', '"seed":-1'), /line 1: seed: /],
+      [good.replace(',"surface":"satin"', ''), /line 1: surface: /],
       [`${good}\n${run(2)}`, /line 2: run must be 1 \(got 2\)/],
       [`${good}\n${run(1)}\n{"run":2}`, /line 3: code: /],
     ];

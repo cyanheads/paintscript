@@ -44,10 +44,11 @@ run: each script file is one passage, run in order on one canvas.
   --seed <n>           32-bit seed (default random; the journal records it)
   --reference <png>    reference image scripts can sample with ref and diff()
   --fit <name>         ${REFERENCE_FITS.join(' | ')} (default cover)
-  --surface <name>     ${SURFACES.join(' | ')} (default satin)
+  --surface <name>     ${SURFACES.join(' | ')}, the finish it is seen under (default satin)
 
-replay: re-run a journal on a fresh canvas.
-  --out, --timelapse, --surface as above; --reference for a journal painted against one
+replay: re-run a journal on a fresh canvas, with the size, ground, texture, surface, and
+seed it records.
+  --out, --timelapse as above; --reference for a journal painted against one
 
 vocabulary: print the script API as TypeScript declarations.
 `;
@@ -140,13 +141,13 @@ type Values = ReturnType<typeof parse>['values'];
 async function runCommand(files: string[], v: Values, io: CliIo): Promise<number> {
   if (!files.length) return usage(io, 'run needs at least one script file');
   if (!v.out) return usage(io, 'run needs --out <painting.png>');
-  const surface = v.surface === undefined ? undefined : oneOf('surface', v.surface, SURFACES);
   const reference = v.reference ? decodePng(await readFile(v.reference)) : undefined;
   const painting = await Painting.create({
     ...(v.width !== undefined && { width: integer('width', v.width) }),
     ...(v.height !== undefined && { height: integer('height', v.height) }),
     ...(v.ground !== undefined && { ground: v.ground }),
     ...(v.texture !== undefined && { texture: oneOf('texture', v.texture, TEXTURES) }),
+    ...(v.surface !== undefined && { surface: oneOf('surface', v.surface, SURFACES) }),
     ...(v.seed !== undefined && { seed: integer('seed', v.seed) }),
     ...(reference && {
       reference: {
@@ -165,7 +166,7 @@ async function runCommand(files: string[], v: Values, io: CliIo): Promise<number
     await saveViews(io, v.views, file, result);
     if (result.status !== 'completed') return 1;
   }
-  await writeFile(v.out, encodePng(painting.image(surface)));
+  await writeFile(v.out, encodePng(painting.image()));
   io.out(`wrote ${v.out}\n`);
   const journal = journalOf(painting);
   if (v.journal) {
@@ -179,7 +180,6 @@ async function runCommand(files: string[], v: Values, io: CliIo): Promise<number
 async function replayCommand(files: string[], v: Values, io: CliIo): Promise<number> {
   if (files.length !== 1) return usage(io, 'replay takes one journal file');
   if (!v.out) return usage(io, 'replay needs --out <painting.png>');
-  const surface = v.surface === undefined ? undefined : oneOf('surface', v.surface, SURFACES);
   const journal = parseJournal(await readFile(files[0]!, 'utf8'));
   if (journal.header.engine !== VERSION)
     io.err(
@@ -188,7 +188,7 @@ async function replayCommand(files: string[], v: Values, io: CliIo): Promise<num
   const reference = v.reference ? decodePng(await readFile(v.reference)) : undefined;
   const painting = await replayJournal(journal, reference ? { reference } : {});
   io.out(`replayed ${journal.runs.length} runs\n`);
-  await writeFile(v.out, encodePng(painting.image(surface)));
+  await writeFile(v.out, encodePng(painting.image()));
   io.out(`wrote ${v.out}\n`);
   if (v.timelapse) await timelapse(io, v.timelapse, journal, reference);
   return 0;

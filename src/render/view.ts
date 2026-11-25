@@ -33,6 +33,7 @@ export interface ViewOptions {
   mode?: ViewMode;
   /** Default: the whole canvas. Clipped to the canvas. */
   region?: Region;
+  /** Default: the painting's surface. */
   surface?: Surface;
 }
 
@@ -66,9 +67,9 @@ export function regionToRect(r: Region): PixelRect {
 }
 
 /** Render a view of the canvas. Throws nothing: a region off the canvas renders the whole canvas. */
-export function renderView(c: Canvas, opts: ViewOptions = {}): View {
+export function renderView(c: Canvas, opts: ViewOptions & { surface: Surface }): View {
   const mode = opts.mode ?? 'color';
-  const surface = opts.surface ?? 'satin';
+  const { surface } = opts;
   const region = clipRegion(c, opts.region) ?? { x: 0, y: 0, w: c.width, h: c.height };
   const maxSide = Math.max(16, Math.round(opts.maxSide ?? 1024));
   const scale = Math.min(1, maxSide / Math.max(region.w, region.h));

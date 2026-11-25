@@ -116,11 +116,11 @@ export function render(c: Canvas, surface: Surface): RgbImage {
  * kept): 2×2 point samples per output pixel instead of `render`'s every canvas pixel, so
  * its cost follows the output size.
  */
-export function renderFit(c: Canvas, width: number): RgbImage {
+export function renderFit(c: Canvas, width: number, surface: Surface): RgbImage {
   const ow = Math.max(1, Math.min(c.width, Math.round(width)));
   const oh = Math.max(1, Math.round((c.height * ow) / c.width));
   const rgb = new Uint8Array(ow * oh * 3);
-  fitRegion(c, rgb, ow, oh, 0, 0, c.width, c.height);
+  fitRegion(c, rgb, ow, oh, 0, 0, c.width, c.height, surface);
   return { width: ow, height: oh, rgb };
 }
 
@@ -134,6 +134,7 @@ export function fitRegion(
   y0: number,
   x1: number,
   y1: number,
+  surface: Surface,
 ): void {
   const { width: W, height: H } = c;
   const fx = W / ow;
@@ -151,7 +152,7 @@ export function fitRegion(
       for (let s = 0; s < 4; s++) {
         const x = Math.min(W - 1, Math.floor((ox + (s & 1 ? 0.75 : 0.25)) * fx));
         const y = Math.min(H - 1, Math.floor((oy + (s & 2 ? 0.75 : 0.25)) * fy));
-        shadePixel(c, x, y, 'color', 'satin', px);
+        shadePixel(c, x, y, 'color', surface, px);
         ar += px[0]!;
         ag += px[1]!;
         ab += px[2]!;

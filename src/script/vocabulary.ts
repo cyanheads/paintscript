@@ -19,7 +19,7 @@ import { mixSpectra } from '../paint/mix.js';
 import type { StrokeRecord } from '../painting/run-review.js';
 import type { TileUndo } from '../painting/tile-undo.js';
 import type { DiffResult, Reference, ReferenceEdge } from '../reference/reference.js';
-import { SURFACES } from '../render/render.js';
+import { SURFACES, type Surface } from '../render/render.js';
 import {
   clipRegion,
   type Region,
@@ -53,6 +53,8 @@ export interface SessionEnv {
   reference: Reference | undefined;
   /** Render `show()` views; off when replaying, where nothing looks. */
   render: boolean;
+  /** The painting's surface, for views that don't name one. */
+  surface: Surface;
   undo: TileUndo;
 }
 
@@ -344,7 +346,7 @@ export class RunSession {
       renderView(this.env.canvas, {
         ...(rect && { region: rectToRegion(rect) }),
         ...(mode && { mode }),
-        ...(surface && { surface }),
+        surface: surface ?? this.env.surface,
         ...(maxSide !== undefined && { maxSide: Math.round(maxSide) }),
         ...(grid !== undefined && { grid }),
       }),

@@ -313,6 +313,7 @@ describe('Painting.create', () => {
       [{ width: 5000, height: 5000 }, 'invalid_options'],
       [{ seed: -1 }, 'invalid_options'],
       [{ texture: 'burlap' as never }, 'invalid_options'],
+      [{ surface: 'gloss' as never }, 'invalid_options'],
       [{ ground: 'beige' }, 'invalid_color'],
       [{ limits: { timeMs: 0 } }, 'invalid_options'],
       [{ reference: { image: { width: 2, height: 2, rgb: new Uint8Array(3) } } }, 'invalid_image'],

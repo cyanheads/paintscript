@@ -11,7 +11,7 @@ import { NB } from '../color/spectrum.js';
 import { PaintscriptError } from '../errors.js';
 import { Painting, type PaintingLimits } from '../painting/painting.js';
 import { REFERENCE_FITS } from '../reference/reference.js';
-import type { RgbImage } from '../render/render.js';
+import { type RgbImage, SURFACES } from '../render/render.js';
 import { VERSION } from '../version.js';
 
 const HeaderSchema = z.object({
@@ -23,6 +23,7 @@ const HeaderSchema = z.object({
   height: z.int().positive(),
   ground: z.object({ hex: z.string(), bands: z.array(z.number()).length(NB) }),
   texture: z.enum(TEXTURES),
+  surface: z.enum(SURFACES),
   seed: z.int().min(0).max(0xffffffff),
   pxPerMm: z.number().positive(),
   reference: z
@@ -75,6 +76,7 @@ export function journalOf(painting: Painting): Journal {
       height: painting.height,
       ground: { hex, bands },
       texture: painting.texture,
+      surface: painting.surface,
       seed: painting.seed,
       pxPerMm: painting.pxPerMm,
       ...(ref && {
@@ -129,6 +131,7 @@ export async function openJournal(
     height: h.height,
     ground: { bands: h.ground.bands },
     texture: h.texture,
+    surface: h.surface,
     seed: h.seed,
     pxPerMm: h.pxPerMm,
     ...(options.limits && { limits: options.limits }),

@@ -50,7 +50,7 @@ export async function renderTimelapse(
   const painting = await openJournal(journal, options);
   const canvas = canvasOf(painting);
   const total = journal.runs.reduce((s, r) => s + r.brushwork, 0);
-  const first = renderFit(canvas, width);
+  const first = renderFit(canvas, width, painting.surface);
   const frames = [first.rgb];
   // canvas area changed since the last frame, grown 1 px for the relief gradient's neighbor
   let x0 = Number.POSITIVE_INFINITY;
@@ -59,7 +59,8 @@ export async function renderTimelapse(
   let y1 = Number.NEGATIVE_INFINITY;
   const capture = () => {
     const rgb = frames[frames.length - 1]!.slice();
-    if (x1 > x0) fitRegion(canvas, rgb, first.width, first.height, x0, y0, x1, y1);
+    if (x1 > x0)
+      fitRegion(canvas, rgb, first.width, first.height, x0, y0, x1, y1, painting.surface);
     frames.push(rgb);
     x0 = y0 = Number.POSITIVE_INFINITY;
     x1 = y1 = Number.NEGATIVE_INFINITY;

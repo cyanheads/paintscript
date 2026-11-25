@@ -30,6 +30,15 @@ describe('renderTimelapse', () => {
     expect(film.durationMs).toBe(400 + (21 - 2) * 100 + 2000);
   });
 
+  it('films the painting under its own surface', async () => {
+    const j = await journal();
+    const varnished = { ...j, header: { ...j.header, surface: 'varnish' as const } };
+    const options = { width: 100, frames: 4 };
+    expect((await renderTimelapse(varnished, options)).bytes).not.toEqual(
+      (await renderTimelapse(j, options)).bytes,
+    );
+  });
+
   it('rejects options out of range', async () => {
     const j = await journal();
     for (const o of [{ width: 8 }, { frames: 1 }, { frames: 2.5 }, { fps: 0 }, { hold: 61 }])
