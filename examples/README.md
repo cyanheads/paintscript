@@ -21,3 +21,13 @@ A grove of bamboo after rain, in ink on paper in the sumi-e tradition: one dark 
 ```sh
 bun src/cli/bin.ts run examples/bamboo/0*.js --out examples/bamboo/painting.png --journal examples/bamboo/journal.jsonl --timelapse examples/bamboo/timelapse.gif --seed 1127 --width 1100 --height 1850 --ground '#efe9dc' --texture smooth --surface matte
 ```
+
+## Poppies
+
+![Poppies: red, orange, and coral poppies and white anemones in a cobalt jug on a white cloth, painted with a palette knife](still-life/painting.png)
+
+A cobalt jug of red, orange, and coral poppies with three white anemones, on a white cloth with a lemon and two fallen petals. It is painted almost entirely with the palette knife, in seven passages: a lean brush drawing and block-in over a warm earth ground, then the wall, the cloth, the jug, the foliage, the poppies, and last the anemones and the thick lights. Each passage lays a course of knife planes and presses a second course into it while wet, so the blade scrapes up the paint underneath and drags it along. Every color is mixed with `mix()` from eight tubes, and `dry()` sets each passage so the next builds relief on top of it. The window light comes from the upper left, the same side as the engine's relief light, so the varnished ridges and the paint piled up where each stroke stops catch the light the painting shows.
+
+```sh
+bun src/cli/bin.ts run examples/still-life/0*.js --out examples/still-life/painting.png --journal examples/still-life/journal.jsonl --timelapse examples/still-life/timelapse.gif --seed 2511 --width 1200 --height 1500 --ground '#7d5038' --texture coarse_weave --surface varnish
+```
