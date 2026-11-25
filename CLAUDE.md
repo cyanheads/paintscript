@@ -46,8 +46,12 @@ Design decisions and their reasons: `docs/design.md`. Update it when a decision 
 
 ## Publishing
 
-A release runs straight through on `main`: the version bump and its `changelog/` entry land as `chore(release): <version> — <theme>`, then an annotated `v<version>` tag (a theme subject without the version, flat bullets from the changelog entry, the changelog link last), `gh release create v<version> --verify-tag --notes-from-tag`, and `npm publish`. `prepublishOnly` runs `bun run check` and `bun run lint:packaging`. Each npm publish runs only on the maintainer's word.
+**Every release goes through a release PR, straight-through** — `git-wrapup`'s "Release PR mode", mode `straight-through`. One run:
+- `git-wrapup` lands the commit stack on `release/<version>` with `chore(release): <version> — <theme>` on top (version bump and `changelog/` entry), pushes it, and opens the PR (title = the release commit subject, body = the release digest: theme line, `## Changes`, `## Gates`, changelog link last).
+- `release-and-publish` then fast-forwards `main` locally with `git merge --ff-only`, creates the signed, annotated `v<version>` tag on `main`'s tip, pushes `main` and the tag, deletes the branch, runs `npm publish` (`prepublishOnly` runs `bun run check` and `bun run lint:packaging`), and creates the GitHub release with `--verify-tag --notes-from-tag`. There is no MCP Registry, `.mcpb`, or Docker step.
+
+A caller's brief may run a given release as `gated` instead, with a `release-pr-review` pass on the open PR before `release-and-publish`. **Never merge through the GitHub UI or `gh pr merge`**: squash and rebase-merge are disabled in the repo settings because both rewrite the stack (rebase-merge also strips the SSH signatures), and a merge commit breaks the linear history. Each npm publish runs only on the maintainer's word.
 
 ## Commit stance
 
-Commit and push as verified work lands, after `bun run check` is green. Terse Conventional Commits, one concern per commit, no attribution trailers. Never `git stash`, never worktrees, never force-push.
+Caller-facing work lands through the release flow above. Docs and repo config that change nothing a caller gets from the package are plain commits to `main`. Terse Conventional Commits, one concern per commit, no attribution trailers. Never `git stash`, never worktrees, never force-push.
