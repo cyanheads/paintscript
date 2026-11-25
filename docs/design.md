@@ -1,6 +1,6 @@
 # paintscript design
 
-paintscript turns code into oil paintings. A **painting** holds one canvas. Each **run** executes one JavaScript passage against it in a sandbox and either lands whole or leaves no trace. The scripts are the record: replaying them on a fresh canvas with the same seed reproduces the painting byte for byte, which is how revert, the journal, and the timelapse all work.
+paintscript turns code into paintings: opaque body color, glazes, and transparent washes, from impasto oil to ink. A **painting** holds one canvas. Each **run** executes one JavaScript passage against it in a sandbox and either lands whole or leaves no trace. The scripts are the record: replaying them on a fresh canvas with the same seed reproduces the painting byte for byte, which is how revert, the journal, and the timelapse all work.
 
 ## Layers
 

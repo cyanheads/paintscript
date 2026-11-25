@@ -1,6 +1,6 @@
 <div align="center">
   <h1>paintscript</h1>
-  <p><b>Paint by code: sandboxed JavaScript lays bristle strokes of Kubelka–Munk oil paint, rendered to PNG and timelapse GIF.</b></p>
+  <p><b>Paint by code: sandboxed JavaScript lays bristle strokes of Kubelka–Munk paint, rendered to PNG and timelapse GIF.</b></p>
 </div>
 
 <div align="center">

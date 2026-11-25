@@ -1,7 +1,8 @@
 /**
  * @fileoverview paintscript: paint by code. A `Painting` runs JavaScript passages in a
- * WebAssembly sandbox against simulated oil paint (8-band Kubelka–Munk pigment,
- * bristle-strand brushes, a wet film over a dry base, relief lighting); its journal
+ * WebAssembly sandbox against simulated paint (8-band Kubelka–Munk pigment from opaque
+ * body color to transparent washes, bristle-strand brushes, a wet film over a dry base,
+ * relief lighting); its journal
  * replays it exactly, to a PNG or a timelapse GIF.
  * @module paintscript
  */

@@ -1,6 +1,6 @@
 # paintscript
 
-A TypeScript engine that simulates oil painting (8-band Kubelka–Munk paint, bristle-strand brushes, a wet film over a dry base, relief lighting) and runs model-written JavaScript against it in a WebAssembly sandbox. Published to npm as `paintscript` (unscoped; never add a scope on any surface). Apache-2.0; runs on Bun and Node ≥22.
+A TypeScript engine that simulates painting (8-band Kubelka–Munk paint from opaque body color to transparent washes, bristle-strand brushes, a wet film over a dry base, relief lighting) and runs model-written JavaScript against it in a WebAssembly sandbox. Published to npm as `paintscript` (unscoped; never add a scope on any surface). Apache-2.0; runs on Bun and Node ≥22.
 
 **Orientation:** this file is the behavioral layer; `README.md` has the API and CLI surface.
 
